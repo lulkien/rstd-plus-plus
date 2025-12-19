@@ -3,15 +3,12 @@
 
 using namespace rstd;
 
-/* -------------------------------------------------------------
-      Construction helpers
-         ------------------------------------------------------------- */
 TEST(ResultFactory, OkCreatesOk)
 {
     auto r = Ok<int, std::string>(10);
     EXPECT_TRUE(r.is_ok());
     EXPECT_FALSE(r.is_err());
-    EXPECT_EQ(r.ok().value(), 10);
+    EXPECT_EQ(r.unwrap(), 10);
 }
 
 TEST(ResultFactory, ErrCreatesErr)
@@ -22,16 +19,13 @@ TEST(ResultFactory, ErrCreatesErr)
     EXPECT_EQ(r.err().value(), "bad");
 }
 
-/* -------------------------------------------------------------
-      map – transforms Ok, leaves Err unchanged
-         ------------------------------------------------------------- */
 TEST(ResultMap, TransformsOk)
 {
     auto r = Ok<int, std::string>(5);
     auto doubled = r.map([](int v) { return v * 2; });
 
     EXPECT_TRUE(doubled.is_ok());
-    EXPECT_EQ(doubled.ok().value(), 10);
+    EXPECT_EQ(doubled.unwrap(), 10);
 }
 
 TEST(ResultMap, PropagatesErr)
@@ -43,39 +37,28 @@ TEST(ResultMap, PropagatesErr)
     EXPECT_EQ(out.err().value(), "boom");
 }
 
-/* -------------------------------------------------------------
-      map – rvalue overload (move semantics)
-         ------------------------------------------------------------- */
-// TEST(ResultMap, RvalueMove)
-// {
-//     std::string err = "oops";
-//     auto r = Err<std::unique_ptr<int>, std::string>(std::move(err));
-//
-//     // map should not invoke the lambda; error is moved out unchanged
-//     auto out = std::move(r).map([](std::unique_ptr<int>) { return 0; });
-//
-//     EXPECT_TRUE(out.is_err());
-//     EXPECT_EQ(out.err().value(), "oops");
-// }
+TEST(ResultMap, RvalueMove)
+{
+    std::string err = "oops";
+    auto r = Err<std::unique_ptr<int>, std::string>(std::move(err));
 
-/* -------------------------------------------------------------
-      map – non‑copyable Ok value
-         ------------------------------------------------------------- */
-// TEST(ResultMap, OkNonCopyable)
-// {
-//     auto ptr = std::make_unique<int>(42);
-//     auto r = Ok<std::unique_ptr<int>, std::string>(std::move(ptr));
-//
-//     auto s = r.map([](std::unique_ptr<int> p) { return std::to_string(*p);
-//     });
-//
-//     EXPECT_TRUE(s.is_ok());
-//     EXPECT_EQ(s.ok().value(), "42");
-// }
+    auto out = std::move(r).map([](std::unique_ptr<int> val) { return *val; });
 
-/* -------------------------------------------------------------
-      map_or – default on Err, apply fn on Ok
-         ------------------------------------------------------------- */
+    EXPECT_TRUE(out.is_err());
+    EXPECT_EQ(out.err().value(), "oops");
+}
+
+TEST(ResultMap, OkNonCopyable)
+{
+    auto ptr = std::make_unique<int>(42);
+    auto r = Ok<std::unique_ptr<int>, std::string>(std::move(ptr));
+
+    auto s = std::move(r).map([](std::unique_ptr<int> p) { return *p; });
+
+    EXPECT_TRUE(s.is_ok());
+    EXPECT_EQ(s.unwrap(), 42);
+}
+
 TEST(ResultMapOr, ReturnsDefaultOnErr)
 {
     auto r = Err<int, std::string>("err");
@@ -90,9 +73,6 @@ TEST(ResultMapOr, AppliesFnOnOk)
     EXPECT_EQ(out, 10);
 }
 
-/* -------------------------------------------------------------
-      map_or – rvalue overload (move semantics)
-         ------------------------------------------------------------- */
 TEST(ResultMapOr, RvalueMove)
 {
     std::string err = "bad";
@@ -106,18 +86,13 @@ TEST(ResultMapOr, RvalueMove)
     EXPECT_EQ(out, "default");
 }
 
-/* -------------------------------------------------------------
-      map_or – non‑copyable Ok value
-         ------------------------------------------------------------- */
 // TEST(ResultMapOr, OkNonCopyable)
 // {
 //     auto ptr = std::make_unique<int>(5);
 //     auto r = Ok<std::unique_ptr<int>, std::string>(std::move(ptr));
 //
-//     std::string out = r.map_or(std::string("none"), [](std::unique_ptr<int>
-//     p) {
-//         return std::to_string(*p);
-//     });
+//     std::string out =
+//         std::move(r).map_or(-1, [](std::unique_ptr<int> p) { return *p; });
 //
-//     EXPECT_EQ(out, "5");
+//     EXPECT_EQ(out, 5);
 // }
