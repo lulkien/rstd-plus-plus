@@ -1,2 +1,0 @@
-add_executable(result_example result_example.cpp)
-target_link_libraries(result_example rstd)

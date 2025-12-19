@@ -1,2 +1,0 @@
-# rstd-
-Rust-like c++
