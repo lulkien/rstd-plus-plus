@@ -57,16 +57,15 @@ template <typename E> struct error_type
 /**
  * @brief Type for returning and propagating errors.
  *
- * Result<T, E> is a type that can represent either success (Ok) containing a
- * value of type T, or failure (Err) containing an error value of type E.
+ * Result<T, E> is a type that can represent either success (Ok) containing a value of type T, or
+ * failure (Err) containing an error value of type E.
  *
  * Functions return Result whenever errors are expected and recoverable.
  *
  * @tparam T Type of the success value.
  * @tparam E Type of the error value.
  *
- * @note This class is marked with [[nodiscard]] semantics - ignoring a Result
- * may indicate a bug.
+ * @note This class is marked with [[nodiscard]] semantics - ignoring a Result may indicate a bug.
  *
  * # Examples
  *
@@ -132,7 +131,7 @@ public:
      * @note This is a static factory method. Use Result<T, E>::Ok(value)
      * syntax.
      */
-    [[nodiscard]] static Result Ok(const T &value) { return Result(OkTag{}, value); }
+    static Result Ok(const T &value) { return Result(OkTag{}, value); }
 
     /**
      * @brief Creates a successful Result by moving the given value.
@@ -187,12 +186,10 @@ public:
     bool is_ok() const { return std::holds_alternative<value_type<T>>(data); }
 
     /**
-     * @brief Returns true if the result is Ok and the value matches a
-     *        predicate.
+     * @brief Returns true if the result is Ok and the value matches a predicate.
      *
      * @tparam Pred Type of the predicate function.
-     * @param pred Predicate function that takes the contained value by
-     *        const reference.
+     * @param pred Predicate function that takes the contained value by const reference.
      * @return true if the result is Ok and pred(value) returns true.
      * @return false otherwise.
      *
@@ -209,14 +206,12 @@ public:
     }
 
     /**
-     * @brief Returns true if the result is Ok and the value matches a
-     * predicate.
+     * @brief Returns true if the result is Ok and the value matches a predicate.
      *
      * Rvalue overload that can move the value into the predicate.
      *
      * @tparam Pred Type of the predicate function.
-     * @param pred Predicate function that can take the contained value by
-     *        value (move).
+     * @param pred Predicate function that can take the contained value by value (move).
      * @return true if the result is Ok and pred(value) returns true.
      * @return false otherwise.
      *
@@ -250,12 +245,10 @@ public:
     bool is_err() const { return std::holds_alternative<error_type<E>>(data); }
 
     /**
-     * @brief Returns true if the result is Err and the error matches a
-     *        predicate.
+     * @brief Returns true if the result is Err and the error matches a predicate.
      *
      * @tparam Pred Type of the predicate function.
-     * @param pred Predicate function that takes the contained error by
-     *        const reference.
+     * @param pred Predicate function that takes the contained error by const reference.
      * @return true if the result is Err and pred(error) returns true.
      * @return false otherwise.
      *
@@ -273,14 +266,12 @@ public:
     }
 
     /**
-     * @brief Returns true if the result is Err and the error matches a
-     *        predicate.
+     * @brief Returns true if the result is Err and the error matches a predicate.
      *
      * Rvalue overload that can move the error into the predicate.
      *
      * @tparam Pred Type of the predicate function.
-     * @param pred Predicate function that can take the contained error
-     *        by value (move).
+     * @param pred Predicate function that can take the contained error by value (move).
      * @return true if the result is Err and pred(error) returns true.
      * @return false otherwise.
      */
@@ -378,8 +369,7 @@ public:
     // ==============================
 
     /**
-     * @brief Maps a Result<T, E> to Result<U, E> by applying a function
-     *        to a contained Ok value.
+     * @brief Maps a Result<T, E> to Result<U, E> by applying a function to a contained Ok value.
      *
      * Leaves an Err value untouched.
      *
@@ -409,8 +399,7 @@ public:
     }
 
     /**
-     * @brief Maps a Result<T, E> to Result<U, E> by applying a function
-     *        to a contained Ok value.
+     * @brief Maps a Result<T, E> to Result<U, E> by applying a function to a contained Ok value.
      *
      * Rvalue overload that can move the value into the function.
      *
@@ -442,15 +431,13 @@ public:
     }
 
     /**
-     * @brief Returns the provided default if Err, or applies a function
-     *        to the contained Ok value.
+     * @brief Returns the provided default if Err, or applies a function to the contained Ok value.
      *
      * @tparam U Type of the default value (and return type).
      * @tparam Fn Type of the mapping function.
      * @param default_val Default value to return if the result is Err.
      * @param fn Function to apply to the contained Ok value.
-     * @return U The result of applying fn to the Ok value, or default_val
-     *         if Err.
+     * @return U The result of applying fn to the Ok value, or default_val if Err.
      *
      * # Examples
      * @code
@@ -470,8 +457,7 @@ public:
     }
 
     /**
-     * @brief Returns the provided default if Err, or applies a function
-     *        to the contained Ok value.
+     * @brief Returns the provided default if Err, or applies a function to the contained Ok value.
      *
      * Rvalue overload that can move the value into the function.
      *
@@ -479,8 +465,7 @@ public:
      * @tparam Fn Type of the mapping function.
      * @param default_val Default value to return if the result is Err.
      * @param fn Function to apply to the contained Ok value.
-     * @return U The result of applying fn to the Ok value, or default_val if
-     * Err.
+     * @return U The result of applying fn to the Ok value, or default_val if Err.
      */
     template <typename U, typename Fn> constexpr U map_or(U &&default_val, Fn &&fn) &&
     {
@@ -572,8 +557,7 @@ public:
      * @brief Returns the contained Ok value, consuming the self value.
      *
      * @return T The contained success value.
-     * @throws std::runtime_error if the value is an Err, with a generic
-     *         panic message.
+     * @throws std::runtime_error if the value is an Err, with a generic panic message.
      *
      * @note Because this function may throw, its use is generally discouraged.
      *       Panics are meant for unrecoverable errors.
@@ -584,8 +568,7 @@ public:
      * assert(x.unwrap() == 2);
      *
      * Result<int, std::string> y = Err("error");
-     * // y.unwrap();
-     * // throws: "called `Result::unwrap()` on an `Err` value: error"
+     * // y.unwrap(); // throws: "called `Result::unwrap()` on an `Err` value: error"
      * @endcode
      */
     T unwrap() &&
@@ -624,8 +607,8 @@ public:
     /**
      * @brief Returns the contained Ok value or a default.
      *
-     * Consumes the self argument then, if Ok, returns the contained value,
-     * otherwise if Err, returns the default value for that type.
+     * Consumes the self argument then, if Ok, returns the contained value, otherwise if Err,
+     * returns the default value for that type.
      *
      * @tparam U Type to return (defaults to T).
      * @return U The contained value if Ok, or U{} if Err.
@@ -677,8 +660,8 @@ public:
      *
      * @param msg Custom panic message to display if the result is Ok.
      * @return E The contained error value.
-     * @throws std::runtime_error if the value is an Ok, with a panic message
-     *         including the passed message and the content of the Ok.
+     * @throws std::runtime_error if the value is an Ok, with a panic message including the passed
+     *         message and the content of the Ok.
      *
      * # Examples
      * @code
@@ -721,8 +704,7 @@ public:
      * @brief Returns the contained Err value, consuming the self value.
      *
      * @return E The contained error value.
-     * @throws std::runtime_error if the value is an Ok, with a generic
-     *         panic message.
+     * @throws std::runtime_error if the value is an Ok, with a generic panic message.
      *
      * # Examples
      * @code
@@ -758,7 +740,10 @@ public:
  *
  * @note This is a free function alternative to Result<U, V>::Ok().
  */
-template <typename U, typename V> Result<U, V> Ok(const U &v) { return Result<U, V>(OkTag{}, v); }
+template <typename U, typename V> [[nodiscard]] Result<U, V> Ok(const U &v)
+{
+    return Result<U, V>(OkTag{}, v);
+}
 
 /**
  * @brief Creates a successful Result by moving the given value.
@@ -768,7 +753,7 @@ template <typename U, typename V> Result<U, V> Ok(const U &v) { return Result<U,
  * @param v The success value to move into the Result.
  * @return Result<U, V> containing the moved value in the Ok state.
  */
-template <typename U, typename V> Result<U, V> Ok(U &&v)
+template <typename U, typename V> [[nodiscard]] Result<U, V> Ok(U &&v)
 {
     return Result<U, V>(OkTag{}, std::move(v));
 }
@@ -781,7 +766,10 @@ template <typename U, typename V> Result<U, V> Ok(U &&v)
  * @param e The error value to store.
  * @return Result<U, V> containing the error in the Err state.
  */
-template <typename U, typename V> Result<U, V> Err(const V &e) { return Result<U, V>(ErrTag{}, e); }
+template <typename U, typename V> [[nodiscard]] Result<U, V> Err(const V &e)
+{
+    return Result<U, V>(ErrTag{}, e);
+}
 
 /**
  * @brief Creates an error Result by moving the given error.
@@ -791,7 +779,7 @@ template <typename U, typename V> Result<U, V> Err(const V &e) { return Result<U
  * @param e The error value to move into the Result.
  * @return Result<U, V> containing the moved error in the Err state.
  */
-template <typename U, typename V> Result<U, V> Err(V &&e)
+template <typename U, typename V> [[nodiscard]] Result<U, V> Err(V &&e)
 {
     return Result<U, V>(ErrTag{}, std::move(e));
 }
