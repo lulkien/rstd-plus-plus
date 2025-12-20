@@ -43,23 +43,25 @@ template <typename T, typename E> class Result
     Result(ErrTag, const E &e) : data{error_type<E>{e}} {}
     Result(ErrTag, E &&e) : data{error_type<E>{std::move(e)}} {}
 
-    template <typename ErrorType>
+    template <typename PanicType>
     [[noreturn]] static void unwrap_failed(const char *msg,
-                                           const ErrorType &error)
+                                           const PanicType &value)
     {
         std::ostringstream oss;
         oss << msg << ": ";
-        if constexpr (std::is_same_v<ErrorType, std::string> ||
-                      std::is_same_v<ErrorType, const char *> ||
-                      std::is_convertible_v<ErrorType, std::string_view>) {
-            oss << error;
-        } else if constexpr (requires(std::ostream &os, const ErrorType &e) {
-                                 os << e;
+
+        if constexpr (std::is_same_v<PanicType, std::string> ||
+                      std::is_same_v<PanicType, const char *> ||
+                      std::is_convertible_v<PanicType, std::string_view>) {
+            oss << value;
+        } else if constexpr (requires(std::ostream &os, const PanicType &v) {
+                                 os << v;
                              }) {
-            oss << error;
+            oss << value;
         } else {
-            oss << "[object of type " << typeid(ErrorType).name() << "]";
+            oss << "[object of type " << typeid(PanicType).name() << "]";
         }
+
         throw std::runtime_error(oss.str());
     }
 
@@ -229,6 +231,46 @@ public:
             return std::get<value_type<U>>(data).value;
         } else {
             return U{};
+        }
+    }
+
+    E expect_err(const char *msg) &&
+    {
+        if (is_err()) {
+            return std::move(std::get<error_type<E>>(data).error);
+        } else {
+            const T &t = std::get<value_type<T>>(data).value;
+            unwrap_failed(msg, t);
+        }
+    }
+
+    E expect_err(const char *msg) const &
+    {
+        if (is_err()) {
+            return std::get<error_type<E>>(data).error;
+        } else {
+            const T &t = std::get<value_type<T>>(data).value;
+            unwrap_failed(msg, t);
+        }
+    }
+
+    E unwrap_err() &&
+    {
+        if (is_err()) {
+            return std::move(std::get<error_type<E>>(data).error);
+        } else {
+            const T &t = std::get<value_type<T>>(data).value;
+            unwrap_failed("called `Result::unwrap_err()` on an `Ok` value", t);
+        }
+    }
+
+    E unwrap_err() const &
+    {
+        if (is_err()) {
+            return std::get<error_type<E>>(data).error;
+        } else {
+            const T &t = std::get<value_type<T>>(data).value;
+            unwrap_failed("called `Result::unwrap_err()` on an `Ok` value", t);
         }
     }
 };
