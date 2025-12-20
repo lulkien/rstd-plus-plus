@@ -33,4 +33,4 @@ ForEachMacros:
 IfMacros:
   - KJ_IF_MAYBE
 IndentWidth: 4
-
+AllowShortCompoundRequirementOnASingleLine: true
