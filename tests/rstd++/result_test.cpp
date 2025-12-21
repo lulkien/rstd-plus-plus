@@ -4,129 +4,200 @@
  */
 
 #include "rstd++/result.hpp"
+#include <cmath>
 #include <gtest/gtest.h>
 #include <sstream>
 #include <string>
 
 using namespace rstd;
 
+#define take(a) std::move(a)
+
+struct NonCopyableValue
+{
+    int value;
+    NonCopyableValue() : value(0) {}
+    NonCopyableValue(int v) : value(v) {}
+    NonCopyableValue(const NonCopyableValue &) = delete;
+    auto operator=(const NonCopyableValue &) -> NonCopyableValue & = delete;
+    NonCopyableValue(NonCopyableValue &&) = default;
+    auto operator=(NonCopyableValue &&) -> NonCopyableValue & = default;
+    auto operator==(const int &ov) const -> bool { return value == ov; }
+    auto operator==(const NonCopyableValue &o) const -> bool { return value == o.value; }
+};
+
+struct NonCopyableError
+{
+    std::string error;
+    NonCopyableError() : error{""} {}
+    NonCopyableError(const char *str) : error{str} {}
+    NonCopyableError(const NonCopyableError &) = delete;
+    auto operator=(const NonCopyableError &) -> NonCopyableError & = delete;
+    NonCopyableError(NonCopyableError &&) = default;
+    auto operator=(NonCopyableError &&) -> NonCopyableError & = default;
+    auto operator==(const char *str) const -> bool { return error.compare(str) == 0; }
+    auto operator==(const NonCopyableError &o) const -> bool { return error.compare(o.error) == 0; }
+};
+
+inline auto f_equal(const float a, const float b, const float e = 1e-6) -> bool
+{
+    return std::fabs(a - b) < e;
+}
+
 // ======================================================================
 // Basic Construction Tests
 // ======================================================================
 
-TEST(ResultTest, OkConstructionWithValue)
+TEST(ResultCreateTest, OkCreate)
 {
-    Result<int, std::string> r = Result<int, std::string>::Ok(42);
+    auto r = Result<int, std::string>::Ok(42);
     EXPECT_TRUE(r.is_ok());
-    EXPECT_FALSE(r.is_err());
     EXPECT_EQ(r.unwrap(), 42);
 }
 
-TEST(ResultTest, ErrConstructionWithValue)
+TEST(ResultCreateTest, OkCreateNonCopy)
 {
-    Result<int, std::string> r = Result<int, std::string>::Err("error");
-    EXPECT_FALSE(r.is_ok());
-    EXPECT_TRUE(r.is_err());
-    EXPECT_EQ(r.unwrap_err(), "error");
+    auto r = Result<NonCopyableValue, std::string>::Ok(42);
+    EXPECT_TRUE(r.is_ok());
+    EXPECT_EQ(take(r).unwrap(), 42);
 }
 
-TEST(ResultTest, OkConstructionWithVoid)
+TEST(ResultCreateTest, ErrCreate)
 {
-    Result<Void, std::string> r = Result<Void, std::string>::Ok(Void{});
+    auto r = Result<int, std::string>::Err("ErrCreate");
+    EXPECT_TRUE(r.is_err());
+    EXPECT_EQ(r.unwrap_err(), "ErrCreate");
+}
+
+TEST(ResultCreateTest, ErrCreateNonCopy)
+{
+    auto r = Result<Void, NonCopyableError>::Err("ErrCreateNonCopy");
+    EXPECT_TRUE(r.is_err());
+    EXPECT_EQ(take(r).unwrap_err(), "ErrCreateNonCopy");
+}
+
+TEST(ResultCreateTest, OkVoid)
+{
+    auto r = Result<Void, std::string>::Ok(Void{});
     EXPECT_TRUE(r.is_ok());
     EXPECT_FALSE(r.is_err());
 }
 
-TEST(ResultTest, ErrConstructionWithVoid)
+TEST(ResultCreateTest, ErrVoid)
 {
-    Result<int, Void> r = Result<int, Void>::Err(Void{});
+    auto r = Result<int, Void>::Err(Void{});
     EXPECT_FALSE(r.is_ok());
     EXPECT_TRUE(r.is_err());
-}
-
-TEST(ResultTest, VoidVoidResult)
-{
-    Result<Void, Void> r1 = Result<Void, Void>::Ok(Void{});
-    EXPECT_TRUE(r1.is_ok());
-
-    Result<Void, Void> r2 = Result<Void, Void>::Err(Void{});
-    EXPECT_TRUE(r2.is_err());
 }
 
 // ======================================================================
 // Factory Function Tests
 // ======================================================================
 
-TEST(ResultFactoryTest, OkWithValue)
+TEST(ResultFactoryCreateTest, OkCreate)
 {
     auto r = Ok<int, std::string>(42);
     EXPECT_TRUE(r.is_ok());
     EXPECT_EQ(r.unwrap(), 42);
 }
 
-TEST(ResultFactoryTest, ErrWithValue)
+TEST(ResultFactoryCreateTest, OkCreateNonCopy)
 {
-    auto r = Err<int, std::string>(std::string("error"));
-    EXPECT_TRUE(r.is_err());
-    EXPECT_EQ(r.unwrap_err(), "error");
-}
-
-TEST(ResultFactoryTest, OkRvalue)
-{
-    std::string s = "hello";
-    auto r = Ok<std::string, int>(std::move(s));
+    auto r = Ok<NonCopyableValue, int>(100);
     EXPECT_TRUE(r.is_ok());
-    EXPECT_EQ(r.unwrap(), "hello");
+    EXPECT_EQ(take(r).unwrap(), 100);
 }
 
-TEST(ResultFactoryTest, ErrRvalue)
+TEST(ResultFactoryCreateTest, ErrCreate)
 {
-    std::string s = "error";
-    auto r = Err<int, std::string>(std::move(s));
+    auto r = Err<int, std::string>(std::string("ErrCreate"));
     EXPECT_TRUE(r.is_err());
-    EXPECT_EQ(r.unwrap_err(), "error");
+    EXPECT_EQ(r.unwrap_err(), "ErrCreate");
+}
+
+TEST(ResultFactoryCreateTest, ErrCreateNonCopy)
+{
+    auto r = Err<int, NonCopyableError>("ErrCreateNonCopy");
+    EXPECT_TRUE(r.is_err());
+    EXPECT_EQ(take(r).unwrap_err(), "ErrCreateNonCopy");
+}
+
+TEST(ResultFactoryCreateTest, OkVoid)
+{
+    auto r = Ok<Void, std::string>(Void{});
+    EXPECT_TRUE(r.is_ok());
+    EXPECT_FALSE(r.is_err());
+}
+
+TEST(ResultFactoryCreateTest, ErrVoid)
+{
+    auto r = Err<int, Void>(Void{});
+    EXPECT_FALSE(r.is_ok());
+    EXPECT_TRUE(r.is_err());
 }
 
 // ======================================================================
 // Querying Tests
 // ======================================================================
 
-TEST(ResultQueryTest, IsOkAndWithPredicate)
+TEST(ResultQueryTest, IsOkAnd)
 {
-    auto r1 = Result<int, std::string>::Ok(42);
-    EXPECT_TRUE(r1.is_ok_and([](int x) { return x > 40; }));
-    EXPECT_FALSE(r1.is_ok_and([](int x) { return x < 40; }));
+    auto r1 = Ok<int, std::string>(42);
+    EXPECT_TRUE(r1.is_ok_and([](int x) -> bool { return x > 40; }));
+    EXPECT_FALSE(r1.is_ok_and([](int x) -> bool { return x < 40; }));
 
-    auto r2 = Result<int, std::string>::Err("error");
-    EXPECT_FALSE(r2.is_ok_and([](int x) { return x > 40; }));
+    auto r2 = Err<int, std::string>("error");
+    EXPECT_FALSE(r2.is_ok_and([](int x) -> bool { return x > 40; }));
 }
 
-TEST(ResultQueryTest, IsErrAndWithPredicate)
+TEST(ResultQueryTest, IsOkAndNonCopy)
 {
-    auto r1 = Result<int, std::string>::Err("error");
-    EXPECT_TRUE(r1.is_err_and([](const std::string &s) { return s == "error"; }));
-    EXPECT_FALSE(r1.is_err_and([](const std::string &s) { return s == "other"; }));
+    auto r1 = Ok<NonCopyableValue, std::string>(10);
+    EXPECT_TRUE(take(r1).is_ok_and([](NonCopyableValue &&v) -> bool { return v.value > 0; }));
+    EXPECT_FALSE(take(r1).is_ok_and([](NonCopyableValue &&v) -> bool { return v.value < 0; }));
 
-    auto r2 = Result<int, std::string>::Ok(42);
-    EXPECT_FALSE(r2.is_err_and([](const std::string &s) { return s == "error"; }));
+    auto r2 = Err<int, NonCopyableError>("IsOkAndNonCopy");
+    EXPECT_FALSE(take(r2).is_ok_and([](NonCopyableValue &&v) -> bool { return v.value > 0; }));
 }
 
-TEST(ResultQueryTest, IsOkAndWithVoid)
+TEST(ResultQueryTest, IsErrAnd)
 {
-    auto r1 = Result<Void, std::string>::Ok(Void{});
-    EXPECT_TRUE(r1.is_ok_and([](const Void &) { return true; }));
+    auto r1 = Err<int, std::string>("error");
+    EXPECT_TRUE(r1.is_err_and([](const std::string &s) -> bool { return s == "error"; }));
+    EXPECT_FALSE(r1.is_err_and([](const std::string &s) -> bool { return s == "other"; }));
 
-    auto r2 = Result<Void, std::string>::Err("error");
-    EXPECT_FALSE(r2.is_ok_and([](const Void &) { return true; }));
+    auto r2 = Ok<int, std::string>(42);
+    EXPECT_FALSE(r2.is_err_and([](const std::string &s) -> bool { return s == "error"; }));
 }
 
-TEST(ResultQueryTest, IsErrAndWithVoid)
+TEST(ResultQueryTest, IsErrAndNonCopy)
 {
-    auto r1 = Result<int, Void>::Err(Void{});
-    EXPECT_TRUE(r1.is_err_and([](const Void &) { return true; }));
+    auto r1 = Err<int, NonCopyableError>("IsErrAndNonCopy");
+    EXPECT_TRUE(take(r1).is_err_and(
+        [](NonCopyableError &&e) -> bool { return e.error == "IsErrAndNonCopy"; }));
+    EXPECT_FALSE(
+        take(r1).is_err_and([](NonCopyableError &&e) -> bool { return e.error == "other"; }));
 
-    auto r2 = Result<int, Void>::Ok(42);
-    EXPECT_FALSE(r2.is_err_and([](const Void &) { return true; }));
+    auto r2 = Ok<NonCopyableValue, std::string>(42);
+    EXPECT_FALSE(r2.is_err_and([](const std::string &s) -> bool { return s == "error"; }));
+}
+
+TEST(ResultQueryTest, IsOkAndVoid)
+{
+    auto r1 = Ok<Void, std::string>(Void{});
+    EXPECT_TRUE(r1.is_ok_and([](const Void &) -> bool { return true; }));
+
+    auto r2 = Err<Void, std::string>("error");
+    EXPECT_FALSE(r2.is_ok_and([](const Void &) -> bool { return true; }));
+}
+
+TEST(ResultQueryTest, IsErrAndVoid)
+{
+    auto r1 = Err<int, Void>(Void{});
+    EXPECT_TRUE(r1.is_err_and([](const Void &) -> bool { return true; }));
+
+    auto r2 = Ok<int, Void>(42);
+    EXPECT_FALSE(r2.is_err_and([](const Void &) -> bool { return true; }));
 }
 
 // ======================================================================
@@ -135,46 +206,70 @@ TEST(ResultQueryTest, IsErrAndWithVoid)
 
 TEST(ResultAdapterTest, OkToOptional)
 {
-    auto r1 = Result<int, std::string>::Ok(42);
+    auto r1 = Ok<int, std::string>(42);
     auto opt1 = r1.ok();
     EXPECT_TRUE(opt1.has_value());
     EXPECT_EQ(opt1.value(), 42);
 
-    auto r2 = Result<int, std::string>::Err("error");
+    auto r2 = Err<int, std::string>("error");
     auto opt2 = r2.ok();
+    EXPECT_FALSE(opt2.has_value());
+}
+
+TEST(ResultAdapterTest, OkToOptionalNonCopy)
+{
+    auto r1 = Ok<NonCopyableValue, std::string>(42);
+    auto opt1 = take(r1).ok();
+    EXPECT_TRUE(opt1.has_value());
+    EXPECT_EQ(opt1.value(), 42);
+
+    auto r2 = Err<NonCopyableValue, std::string>("error");
+    auto opt2 = take(r2).ok();
     EXPECT_FALSE(opt2.has_value());
 }
 
 TEST(ResultAdapterTest, ErrToOptional)
 {
-    auto r1 = Result<int, std::string>::Err("error");
+    auto r1 = Err<int, std::string>("error");
     auto opt1 = r1.err();
     EXPECT_TRUE(opt1.has_value());
     EXPECT_EQ(opt1.value(), "error");
 
-    auto r2 = Result<int, std::string>::Ok(42);
+    auto r2 = Ok<int, std::string>(42);
     auto opt2 = r2.err();
     EXPECT_FALSE(opt2.has_value());
 }
 
-TEST(ResultAdapterTest, OkToOptionalWithVoid)
+TEST(ResultAdapterTest, ErrToOptionalNonCopy)
 {
-    auto r1 = Result<Void, std::string>::Ok(Void{});
+    auto r1 = Err<int, NonCopyableError>("error");
+    auto opt1 = take(r1).err();
+    EXPECT_TRUE(opt1.has_value());
+    EXPECT_EQ(opt1.value(), "error");
+
+    auto r2 = Ok<int, NonCopyableError>(42);
+    auto opt2 = take(r2).err();
+    EXPECT_FALSE(opt2.has_value());
+}
+
+TEST(ResultAdapterTest, OkToOptionalVoid)
+{
+    auto r1 = Ok<Void, std::string>(Void{});
     auto opt1 = r1.ok();
     EXPECT_TRUE(opt1.has_value());
 
-    auto r2 = Result<Void, std::string>::Err("error");
+    auto r2 = Err<Void, std::string>("error");
     auto opt2 = r2.ok();
     EXPECT_FALSE(opt2.has_value());
 }
 
-TEST(ResultAdapterTest, ErrToOptionalWithVoid)
+TEST(ResultAdapterTest, ErrToOptionalVoid)
 {
-    auto r1 = Result<int, Void>::Err(Void{});
+    auto r1 = Err<int, Void>(Void{});
     auto opt1 = r1.err();
     EXPECT_TRUE(opt1.has_value());
 
-    auto r2 = Result<int, Void>::Ok(42);
+    auto r2 = Ok<int, Void>(42);
     auto opt2 = r2.err();
     EXPECT_FALSE(opt2.has_value());
 }
@@ -183,67 +278,76 @@ TEST(ResultAdapterTest, ErrToOptionalWithVoid)
 // Transformation Tests
 // ======================================================================
 
-TEST(ResultTransformTest, MapOkValue)
+TEST(ResultTransformTest, MapOk)
 {
-    auto r = Result<int, std::string>::Ok(42);
-    auto r2 = r.map([](int x) { return x * 2; });
+    auto r = Ok<int, std::string>(42);
+    auto r2 = r.map([](int x) -> int { return x * 2; });
     EXPECT_TRUE(r2.is_ok());
     EXPECT_EQ(r2.unwrap(), 84);
 }
 
-TEST(ResultTransformTest, MapErrValue)
+TEST(ResultTransformTest, MapOkNonCopy)
 {
-    auto r = Result<int, std::string>::Err("error");
-    auto r2 = r.map([](int x) { return x * 2; });
-    EXPECT_TRUE(r2.is_err());
-    EXPECT_EQ(r2.unwrap_err(), "error");
+    auto r1 = Ok<NonCopyableValue, std::string>(50);
+    auto r2 = take(r1).map([](NonCopyableValue &&v) -> NonCopyableValue { return {v.value * 2}; });
+    EXPECT_TRUE(r2.is_ok());
+    EXPECT_EQ(take(r2).unwrap(), 100);
 }
 
-TEST(ResultTransformTest, MapChangesType)
+TEST(ResultTransformTest, MapErr)
 {
-    auto r = Result<int, std::string>::Ok(42);
-    auto r2 = r.map([](int x) { return std::to_string(x); });
+    auto r = Err<int, std::string>("MapErr");
+    auto r2 = r.map([](int x) -> int { return x * 2; });
+    EXPECT_TRUE(r2.is_err());
+    EXPECT_EQ(r2.unwrap_err(), "MapErr");
+}
+
+TEST(ResultTransformTest, MapErrNonCopy)
+{
+    auto r1 = Err<int, NonCopyableError>("MapErrNonCopy");
+    auto r2 = take(r1).map([](int x) -> int { return x * 2; });
+    EXPECT_TRUE(r2.is_err());
+    EXPECT_EQ(take(r2).unwrap_err(), "MapErrNonCopy");
+}
+
+TEST(ResultTransformTest, MapToNewType)
+{
+    auto r = Ok<int, const char *>(42);
+    auto r2 = r.map([](int x) -> float { return 5.0f; });
     EXPECT_TRUE(r2.is_ok());
-    EXPECT_EQ(r2.unwrap(), "42");
+    EXPECT_TRUE(f_equal(r2.unwrap(), 5.0f));
 }
 
 TEST(ResultTransformTest, MapVoidToValue)
 {
-    auto r = Result<Void, std::string>::Ok(Void{});
-    auto r2 = r.map([](const Void &) { return 100; });
+    auto r = Ok<Void, const char *>(Void{});
+    auto r2 = r.map([](const Void &) -> int { return 100; });
     EXPECT_TRUE(r2.is_ok());
     EXPECT_EQ(r2.unwrap(), 100);
 }
 
-TEST(ResultTransformTest, MapValueToVoid)
-{
-    auto r = Result<int, std::string>::Ok(42);
-    auto r2 = r.map([](int) { return Void{}; });
-    EXPECT_TRUE(r2.is_ok());
-}
-
 TEST(ResultTransformTest, MapOrWithOk)
 {
-    auto r = Result<int, std::string>::Ok(42);
-    int result = r.map_or(0, [](int x) { return x * 2; });
+    auto r = Ok<int, const char *>(42);
+    auto result = r.map_or(0, [](int x) -> int { return x * 2; });
     EXPECT_EQ(result, 84);
 }
 
 TEST(ResultTransformTest, MapOrWithErr)
 {
-    auto r = Result<int, std::string>::Err("error");
-    int result = r.map_or(0, [](int x) { return x * 2; });
+    auto r = Err<int, const char *>("MapOrWithErr");
+    auto result = r.map_or(0, [](int x) -> int { return x * 2; });
     EXPECT_EQ(result, 0);
 }
 
 TEST(ResultTransformTest, MapOrWithVoid)
 {
-    auto r1 = Result<Void, std::string>::Ok(Void{});
-    int result1 = r1.map_or(0, [](const Void &) { return 42; });
+    auto r1 = Ok<Void, const char *>(Void{});
+    auto result1 = r1.map_or(0, [](const Void &) -> int { return 42; });
     EXPECT_EQ(result1, 42);
 
-    auto r2 = Result<Void, std::string>::Err("error");
-    int result2 = r2.map_or(0, [](const Void &) { return 42; });
+    auto r2 = Err<Void, const char *>("MapOrWithVoid");
+    auto result2 = r2.map_or(0, [](const Void &) -> int { return 42; });
     EXPECT_EQ(result2, 0);
 }
 
@@ -253,21 +357,20 @@ TEST(ResultTransformTest, MapOrWithVoid)
 
 TEST(ResultExtractionTest, ExpectOk)
 {
-    auto r = Result<int, std::string>::Ok(42);
+    auto r = Ok<int, const char *>(42);
     EXPECT_EQ(r.expect("should be ok"), 42);
 }
 
-TEST(ResultExtractionTest, ExpectErrThrows)
+TEST(ResultExtractionTest, ExpectFailed)
 {
-    auto r = Result<int, std::string>::Err("error");
+    auto r = Err<int, std::string>("BBBB");
     EXPECT_THROW(
         {
             try {
-                r.expect("custom message");
+                r.expect("AAAA");
             } catch (const std::runtime_error &e) {
-                std::string msg = e.what();
-                EXPECT_NE(msg.find("custom message"), std::string::npos);
-                EXPECT_NE(msg.find("error"), std::string::npos);
+                auto check = std::string{e.what()}.compare("AAAA: BBBB") == 0;
+                EXPECT_TRUE(check);
                 throw;
             }
         },
@@ -276,27 +379,27 @@ TEST(ResultExtractionTest, ExpectErrThrows)
 
 TEST(ResultExtractionTest, ExpectWithVoid)
 {
-    auto r = Result<Void, std::string>::Ok(Void{});
+    auto r = Ok<Void, const char *>(Void{});
     EXPECT_NO_THROW(r.expect("should be ok"));
 }
 
 TEST(ResultExtractionTest, UnwrapOk)
 {
-    auto r = Result<int, std::string>::Ok(42);
+    auto r = Ok<int, const char *>(42);
     EXPECT_EQ(r.unwrap(), 42);
 }
 
-TEST(ResultExtractionTest, UnwrapErrThrows)
+TEST(ResultExtractionTest, UnwrapFailed)
 {
-    auto r = Result<int, std::string>::Err("error");
+    auto r = Err<int, const char *>("AAAA");
     EXPECT_THROW(
         {
             try {
                 r.unwrap();
             } catch (const std::runtime_error &e) {
-                std::string msg = e.what();
-                EXPECT_NE(msg.find("unwrap()"), std::string::npos);
-                EXPECT_NE(msg.find("error"), std::string::npos);
+                auto check = std::string{e.what()}.compare(
+                                 "called `Result::unwrap()` on an `Err` value: AAAA") == 0;
+                EXPECT_TRUE(check);
                 throw;
             }
         },
@@ -305,66 +408,74 @@ TEST(ResultExtractionTest, UnwrapErrThrows)
 
 TEST(ResultExtractionTest, UnwrapWithVoid)
 {
-    auto r = Result<Void, std::string>::Ok(Void{});
+    auto r = Ok<Void, std::string>(Void{});
     EXPECT_NO_THROW(r.unwrap());
 }
 
 TEST(ResultExtractionTest, UnwrapOrDefault)
 {
-    auto r1 = Result<int, std::string>::Ok(42);
+    auto r1 = Ok<int, std::string>(42);
     EXPECT_EQ(r1.unwrap_or_default(), 42);
 
-    auto r2 = Result<int, std::string>::Err("error");
+    auto r2 = Err<int, std::string>("AAAA");
     EXPECT_EQ(r2.unwrap_or_default(), 0);
 }
 
 TEST(ResultExtractionTest, ExpectErrOk)
 {
-    auto r = Result<int, std::string>::Err("error");
-    EXPECT_EQ(r.expect_err("should be err"), "error");
+    auto r = Err<int, std::string>("AAAA");
+    EXPECT_EQ(r.expect_err("should be err"), "AAAA");
+}
+
+TEST(ResultExtractionTest, ExpectErrFailed)
+{
+    auto r = Ok<int, const char *>(100);
+    EXPECT_THROW(
+        {
+            try {
+                r.expect_err("AAAA");
+            } catch (const std::runtime_error &e) {
+                auto check = std::string{e.what()}.compare("AAAA: 100") == 0;
+                EXPECT_TRUE(check);
+                throw;
+            }
+        },
+        std::runtime_error);
 }
 
 TEST(ResultExtractionTest, ExpectErrWithVoid)
 {
-    auto r = Result<int, Void>::Err(Void{});
+    auto r = Err<int, Void>(Void{});
     EXPECT_NO_THROW(r.expect_err("should be err"));
 }
 
 TEST(ResultExtractionTest, UnwrapErrOk)
 {
-    auto r = Result<int, std::string>::Err("error");
-    EXPECT_EQ(r.unwrap_err(), "error");
+    auto r = Err<int, std::string>("AAAA");
+    EXPECT_EQ(r.unwrap_err(), "AAAA");
+}
+
+TEST(ResultExtractionTest, UnwrapErrFailed)
+{
+    auto r = Ok<int, const char *>(100);
+    EXPECT_THROW(
+        {
+            try {
+                r.unwrap_err();
+            } catch (const std::runtime_error &e) {
+                auto check = std::string{e.what()}.compare(
+                    "called `Result::unwrap_err()` on an `Ok` value: 100") == 0;
+                EXPECT_TRUE(check);
+                throw;
+            }
+        },
+        std::runtime_error);
 }
 
 TEST(ResultExtractionTest, UnwrapErrWithVoid)
 {
-    auto r = Result<int, Void>::Err(Void{});
+    auto r = Err<int, Void>(Void{});
     EXPECT_NO_THROW(r.unwrap_err());
-}
-
-// ======================================================================
-// Move Semantics Tests
-// ======================================================================
-
-TEST(ResultMoveTest, MoveOkValue)
-{
-    auto r = Result<std::string, int>::Ok(std::string("hello"));
-    std::string s = std::move(r).unwrap();
-    EXPECT_EQ(s, "hello");
-}
-
-TEST(ResultMoveTest, MoveErrValue)
-{
-    auto r = Result<int, std::string>::Err(std::string("error"));
-    std::string s = std::move(r).unwrap_err();
-    EXPECT_EQ(s, "error");
-}
-
-TEST(ResultMoveTest, MapWithRvalue)
-{
-    auto r = Result<std::string, int>::Ok(std::string("hello"));
-    auto r2 = std::move(r).map([](std::string s) { return s + " world"; });
-    EXPECT_EQ(r2.unwrap(), "hello world");
 }
 
 // ======================================================================
@@ -390,19 +501,9 @@ TEST(VoidTest, Printable)
 // Complex Type Tests
 // ======================================================================
 
-struct NonCopyable
-{
-    int value;
-    NonCopyable(int v) : value(v) {}
-    NonCopyable(const NonCopyable &) = delete;
-    NonCopyable &operator=(const NonCopyable &) = delete;
-    NonCopyable(NonCopyable &&) = default;
-    NonCopyable &operator=(NonCopyable &&) = default;
-};
-
 TEST(ResultComplexTest, NonCopyableType)
 {
-    auto r = Result<NonCopyable, std::string>::Ok(NonCopyable(42));
+    auto r = Ok<NonCopyableValue, std::string>(NonCopyableValue(42));
     EXPECT_TRUE(r.is_ok());
     EXPECT_EQ(std::move(r).unwrap().value, 42);
 }
@@ -412,20 +513,20 @@ struct CustomError
     int code;
     std::string message;
 
-    bool operator==(const CustomError &other) const
+    auto operator==(const CustomError &other) const -> bool
     {
         return code == other.code && message == other.message;
     }
 };
 
-std::ostream &operator<<(std::ostream &os, const CustomError &e)
+auto operator<<(std::ostream &os, const CustomError &e) -> std::ostream &
 {
     return os << "Error(" << e.code << ", " << e.message << ")";
 }
 
 TEST(ResultComplexTest, CustomErrorType)
 {
-    auto r = Result<int, CustomError>::Err(CustomError{404, "Not found"});
+    auto r = Err<int, CustomError>(CustomError{.code = 404, .message = "Not found"});
     EXPECT_TRUE(r.is_err());
     CustomError e = r.unwrap_err();
     EXPECT_EQ(e.code, 404);
@@ -434,7 +535,7 @@ TEST(ResultComplexTest, CustomErrorType)
 
 TEST(ResultComplexTest, CustomErrorInException)
 {
-    auto r = Result<int, CustomError>::Err(CustomError{500, "Server error"});
+    auto r = Err<int, CustomError>(CustomError{.code = 500, .message = "Server error"});
     EXPECT_THROW(
         {
             try {
