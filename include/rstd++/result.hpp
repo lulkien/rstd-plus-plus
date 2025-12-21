@@ -76,19 +76,19 @@ inline std::ostream &operator<<(std::ostream &os, const Void &) { return os << "
  */
 template <typename T> struct value_type
 {
-    T value; ///< The contained value
+    T data; ///< The contained data
 
     /**
      * @brief Construct from const reference
-     * @param d The value to store
+     * @param d The data to store
      */
-    value_type(const T &d) : value{d} {}
+    value_type(const T &d) : data{d} {}
 
     /**
      * @brief Construct from rvalue reference
-     * @param d The value to move
+     * @param d The data to move
      */
-    value_type(T &&d) : value{std::move(d)} {}
+    value_type(T &&d) : data{std::move(d)} {}
 };
 
 /**
@@ -97,19 +97,19 @@ template <typename T> struct value_type
  */
 template <typename E> struct error_type
 {
-    E error; ///< The contained error
+    E data; ///< The contained error
 
     /**
      * @brief Construct from const reference
      * @param e The error to store
      */
-    error_type(const E &e) : error{e} {}
+    error_type(const E &e) : data{e} {}
 
     /**
      * @brief Construct from rvalue reference
      * @param e The error to move
      */
-    error_type(E &&e) : error{std::move(e)} {}
+    error_type(E &&e) : data{std::move(e)} {}
 };
 
 /**
@@ -202,35 +202,17 @@ template <typename T, typename E> class Result
      */
     Result(ErrTag, E &&e) : data{error_type<E>{std::move(e)}} {}
 
-    /**
-     * @brief Helper function that throws an exception with formatted error message
-     * @tparam expect_type The variant type that was expected
-     * @param msg The error message prefix
-     * @throws std::runtime_error Always throws with formatted message
-     */
-    template <typename expect_type>
-    [[noreturn]]
-    void unwrap_failed(const char *msg) const
+    template <typename panic_type>
+    [[noreturn]] void unwrap_failed(const char *msg, const panic_type &value) const
     {
         std::ostringstream oss;
+
         oss << msg << ": ";
-
-        if constexpr (std::is_same_v<expect_type, value_type<T>>) {
-            const auto &err = std::get<error_type<E>>(data).error;
-            if constexpr (Printable<E>) {
-                oss << err;
-            } else {
-                oss << "<unprintable>";
-            }
+        if constexpr (Printable<panic_type>) {
+            oss << value;
         } else {
-            const auto &val = std::get<value_type<T>>(data).value;
-            if constexpr (Printable<T>) {
-                oss << val;
-            } else {
-                oss << "<unprintable>";
-            }
+            oss << "[object of type " << typeid(panic_type).name() << "]";
         }
-
         throw std::runtime_error(oss.str());
     }
 
@@ -296,7 +278,7 @@ public:
     bool is_ok_and(Pred pred) const &
         requires NotVoid<T>
     {
-        return is_ok() && pred(std::get<value_type<T>>(data).value);
+        return is_ok() && pred(std::get<value_type<T>>(data).data);
     }
 
     /**
@@ -309,7 +291,7 @@ public:
     bool is_ok_and(Pred pred) const &
         requires IsVoid<T>
     {
-        return is_ok() && pred(std::get<value_type<T>>(data).value);
+        return is_ok() && pred(std::get<value_type<T>>(data).data);
     }
 
     /**
@@ -322,7 +304,7 @@ public:
     bool is_ok_and(Pred pred) &&
         requires NotVoid<T>
     {
-        return is_ok() && pred(std::move(std::get<value_type<T>>(data).value));
+        return is_ok() && pred(std::move(std::get<value_type<T>>(data).data));
     }
 
     /**
@@ -335,7 +317,7 @@ public:
     bool is_ok_and(Pred pred) &&
         requires IsVoid<T>
     {
-        return is_ok() && pred(std::move(std::get<value_type<T>>(data).value));
+        return is_ok() && pred(std::move(std::get<value_type<T>>(data).data));
     }
 
     /**
@@ -354,7 +336,7 @@ public:
     bool is_err_and(Pred pred) const &
         requires NotVoid<E>
     {
-        return is_err() && pred(std::get<error_type<E>>(data).error);
+        return is_err() && pred(std::get<error_type<E>>(data).data);
     }
 
     /**
@@ -367,7 +349,7 @@ public:
     bool is_err_and(Pred pred) const &
         requires IsVoid<E>
     {
-        return is_err() && pred(std::get<error_type<E>>(data).error);
+        return is_err() && pred(std::get<error_type<E>>(data).data);
     }
 
     /**
@@ -380,7 +362,7 @@ public:
     bool is_err_and(Pred pred) &&
         requires NotVoid<E>
     {
-        return is_err() && pred(std::move(std::get<error_type<E>>(data).error));
+        return is_err() && pred(std::move(std::get<error_type<E>>(data).data));
     }
 
     /**
@@ -393,7 +375,7 @@ public:
     bool is_err_and(Pred pred) &&
         requires IsVoid<E>
     {
-        return is_err() && pred(std::move(std::get<error_type<E>>(data).error));
+        return is_err() && pred(std::move(std::get<error_type<E>>(data).data));
     }
 
     // ======================================================================
@@ -407,7 +389,7 @@ public:
     std::optional<T> ok() const &
         requires CopyConstructible<T>
     {
-        return is_ok() ? std::optional<T>(std::get<value_type<T>>(data).value) : std::nullopt;
+        return is_ok() ? std::optional<T>(std::get<value_type<T>>(data).data) : std::nullopt;
     }
 
     /**
@@ -417,7 +399,7 @@ public:
     std::optional<T> ok() &&
     {
         if (is_ok()) {
-            return std::optional<T>(std::move(std::get<value_type<T>>(data).value));
+            return std::optional<T>(std::move(std::get<value_type<T>>(data).data));
         }
         return std::nullopt;
     }
@@ -429,7 +411,7 @@ public:
     std::optional<E> err() const &
         requires CopyConstructible<E>
     {
-        return is_err() ? std::optional<E>(std::get<error_type<E>>(data).error) : std::nullopt;
+        return is_err() ? std::optional<E>(std::get<error_type<E>>(data).data) : std::nullopt;
     }
 
     /**
@@ -439,7 +421,7 @@ public:
     std::optional<E> err() &&
     {
         if (is_err()) {
-            return std::optional<E>(std::move(std::get<error_type<E>>(data).error));
+            return std::optional<E>(std::move(std::get<error_type<E>>(data).data));
         }
         return std::nullopt;
     }
@@ -459,10 +441,10 @@ public:
     {
         using U = decltype(fn(std::declval<const T &>()));
         if (is_ok()) {
-            const T &v = std::get<value_type<T>>(data).value;
+            const T &v = std::get<value_type<T>>(data).data;
             return Result<U, E>::Ok(fn(v));
         }
-        const E &e = std::get<error_type<E>>(data).error;
+        const E &e = std::get<error_type<E>>(data).data;
         return Result<U, E>::Err(e);
     }
 
@@ -477,10 +459,10 @@ public:
     {
         using U = decltype(fn(std::declval<T>()));
         if (is_ok()) {
-            T &&v = std::move(std::get<value_type<T>>(data).value);
+            T &&v = std::move(std::get<value_type<T>>(data).data);
             return Result<U, E>::Ok(fn(std::forward<T>(v)));
         }
-        E &&e = std::move(std::get<error_type<E>>(data).error);
+        E &&e = std::move(std::get<error_type<E>>(data).data);
         return Result<U, E>::Err(std::forward<E>(e));
     }
 
@@ -495,7 +477,7 @@ public:
     template <typename U, typename Fn> constexpr U map_or(U &&default_val, Fn &&fn) const &
     {
         if (is_ok()) {
-            const T &v = std::get<value_type<T>>(data).value;
+            const T &v = std::get<value_type<T>>(data).data;
             return std::forward<Fn>(fn)(v);
         }
         return std::forward<U>(default_val);
@@ -512,7 +494,7 @@ public:
     template <typename U, typename Fn> constexpr U map_or(U &&default_val, Fn &&fn) &&
     {
         if (is_ok()) {
-            T &&v = std::move(std::get<value_type<T>>(data).value);
+            T &&v = std::move(std::get<value_type<T>>(data).data);
             return std::forward<Fn>(fn)(std::forward<T>(v));
         }
         return std::forward<U>(default_val);
@@ -531,9 +513,10 @@ public:
     T expect(const char *msg) const &
     {
         if (is_ok()) {
-            return std::get<value_type<T>>(data).value;
+            return std::get<value_type<T>>(data).data;
         }
-        unwrap_failed<value_type<T>>(msg);
+        const E &e = std::get<error_type<E>>(data).data;
+        unwrap_failed(msg, e);
     }
 
     /**
@@ -545,9 +528,10 @@ public:
     T expect(const char *msg) &&
     {
         if (is_ok()) {
-            return std::move(std::get<value_type<T>>(data).value);
+            return std::move(std::get<value_type<T>>(data).data);
         }
-        unwrap_failed<value_type<T>>(msg);
+        const E &e = std::get<error_type<E>>(data).data;
+        unwrap_failed(msg, e);
     }
 
     /**
@@ -558,9 +542,10 @@ public:
     T unwrap() const &
     {
         if (is_ok()) {
-            return std::get<value_type<T>>(data).value;
+            return std::get<value_type<T>>(data).data;
         }
-        unwrap_failed<value_type<T>>("called `Result::unwrap()` on an `Err` value");
+        const E &e = std::get<error_type<E>>(data).data;
+        unwrap_failed("called `Result::unwrap()` on an `Err` value", e);
     }
 
     /**
@@ -571,9 +556,10 @@ public:
     T unwrap() &&
     {
         if (is_ok()) {
-            return std::move(std::get<value_type<T>>(data).value);
+            return std::move(std::get<value_type<T>>(data).data);
         }
-        unwrap_failed<value_type<T>>("called `Result::unwrap()` on an `Err` value");
+        const E &e = std::get<error_type<E>>(data).data;
+        unwrap_failed("called `Result::unwrap()` on an `Err` value", e);
     }
 
     /**
@@ -584,7 +570,7 @@ public:
         requires DefaultConstructible<T>
     {
         if (is_ok()) {
-            return std::get<value_type<T>>(data).value;
+            return std::get<value_type<T>>(data).data;
         }
         return T{};
     }
@@ -597,7 +583,7 @@ public:
         requires DefaultConstructible<T>
     {
         if (is_ok()) {
-            return std::move(std::get<value_type<T>>(data).value);
+            return std::move(std::get<value_type<T>>(data).data);
         }
         return T{};
     }
@@ -611,9 +597,10 @@ public:
     E expect_err(const char *msg) const &
     {
         if (is_err()) {
-            return std::get<error_type<E>>(data).error;
+            return std::get<error_type<E>>(data).data;
         }
-        unwrap_failed<error_type<E>>(msg);
+        const T &v = std::get<value_type<T>>(data).data;
+        unwrap_failed(msg, v);
     }
 
     /**
@@ -625,9 +612,10 @@ public:
     E expect_err(const char *msg) &&
     {
         if (is_err()) {
-            return std::move(std::get<error_type<E>>(data).error);
+            return std::move(std::get<error_type<E>>(data).data);
         }
-        unwrap_failed<error_type<E>>(msg);
+        const T &v = std::get<value_type<T>>(data).data;
+        unwrap_failed(msg, v);
     }
 
     /**
@@ -638,9 +626,10 @@ public:
     E unwrap_err() const &
     {
         if (is_err()) {
-            return std::get<error_type<E>>(data).error;
+            return std::get<error_type<E>>(data).data;
         }
-        unwrap_failed<error_type<E>>("called `Result::unwrap_err()` on an `Ok` value");
+        const T &v = std::get<value_type<T>>(data).data;
+        unwrap_failed("called `Result::unwrap_err()` on an `Ok` value", v);
     }
 
     /**
@@ -651,9 +640,10 @@ public:
     E unwrap_err() &&
     {
         if (is_err()) {
-            return std::move(std::get<error_type<E>>(data).error);
+            return std::move(std::get<error_type<E>>(data).data);
         }
-        unwrap_failed<error_type<E>>("called `Result::unwrap_err()` on an `Ok` value");
+        const T &v = std::get<value_type<T>>(data).data;
+        unwrap_failed("called `Result::unwrap_err()` on an `Ok` value", v);
     }
 };
 
