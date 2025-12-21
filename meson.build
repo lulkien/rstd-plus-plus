@@ -4,4 +4,5 @@ project('rstd++', 'cpp',
 
 subdir('include')
 subdir('tests')
+subdir('examples')
 
