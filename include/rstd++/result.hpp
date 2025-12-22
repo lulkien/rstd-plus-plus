@@ -9,9 +9,7 @@
 
 #pragma once
 
-#include <cstdio>
 #include <optional>
-#include <ostream>
 #include <sstream>
 #include <type_traits>
 #include <utility>
@@ -20,6 +18,9 @@
 #include "core.hpp"
 
 namespace rstd
+{
+
+namespace __detail
 {
 
 /**
@@ -33,55 +34,6 @@ struct OkTag
  */
 struct ErrTag
 {};
-
-/**
- * @brief Empty struct to represent void/unit types
- *
- * This is used instead of void in template parameters, providing
- * a concrete type that can be instantiated and passed around.
- *
- * @example
- * ```cpp
- * // Function that can fail but has no value on success
- * Result<Void, std::string> validate_input(const std::string& input) {
- *     if (input.empty()) {
- *         return Result<Void, std::string>::Err("Input cannot be empty");
- *     }
- *     return Result<Void, std::string>::Ok(Void{});
- * }
- * ```
- */
-struct Void
-{
-    /**
-     * @brief Default constructor
-     */
-    constexpr Void() noexcept = default;
-
-    /**
-     * @brief Equality comparison (all Void instances are equal)
-     */
-    constexpr auto operator==(const Void &) const noexcept -> bool
-    {
-        return true;
-    }
-
-    /**
-     * @brief Inequality comparison (all Void instances are equal)
-     */
-    constexpr auto operator!=(const Void &) const noexcept -> bool
-    {
-        return false;
-    }
-};
-
-/**
- * @brief Stream output operator for Void
- */
-inline auto operator<<(std::ostream &os, const Void &) -> std::ostream &
-{
-    return os << "()";
-}
 
 /**
  * @brief Wrapper for value types
@@ -124,6 +76,7 @@ template <typename E> struct error_type
      */
     error_type(E &&e) : data{std::move(e)} {}
 };
+} // namespace __detail
 
 /**
  * @brief A type representing either success (Ok) or failure (Err)
@@ -154,32 +107,36 @@ template <typename E> struct error_type
  */
 template <typename T, typename E> class Result
 {
-    std::variant<value_type<T>, error_type<E>>
+    std::variant<__detail::value_type<T>, __detail::error_type<E>>
         data_; ///< Internal storage for either Ok or Err
 
     /**
      * @brief Private constructor for Ok variant with const reference
      * @param v The value to store
      */
-    Result(OkTag, const T &v) : data_{value_type<T>{v}} {}
+    Result(__detail::OkTag, const T &v) : data_{__detail::value_type<T>{v}} {}
 
     /**
      * @brief Private constructor for Ok variant with rvalue reference
      * @param v The value to move
      */
-    Result(OkTag, T &&v) : data_{value_type<T>{std::move(v)}} {}
+    Result(__detail::OkTag, T &&v)
+        : data_{__detail::value_type<T>{std::move(v)}}
+    {}
 
     /**
      * @brief Private constructor for Err variant with const reference
      * @param e The error to store
      */
-    Result(ErrTag, const E &e) : data_{error_type<E>{e}} {}
+    Result(__detail::ErrTag, const E &e) : data_{__detail::error_type<E>{e}} {}
 
     /**
      * @brief Private constructor for Err variant with rvalue reference
      * @param e The error to move
      */
-    Result(ErrTag, E &&e) : data_{error_type<E>{std::move(e)}} {}
+    Result(__detail::ErrTag, E &&e)
+        : data_{__detail::error_type<E>{std::move(e)}}
+    {}
 
     template <typename panic_type>
     [[noreturn]] void unwrap_failed(const char *msg,
@@ -219,7 +176,10 @@ public:
      * @param value The value to store
      * @return A Result containing the Ok value
      */
-    static auto Ok(const T &value) -> Result { return Result(OkTag{}, value); }
+    static auto Ok(const T &value) -> Result
+    {
+        return Result(__detail::OkTag{}, value);
+    }
 
     /**
      * @brief Create an Ok result with an rvalue reference value
@@ -228,7 +188,7 @@ public:
      */
     static auto Ok(T &&value) -> Result
     {
-        return Result(OkTag{}, std::move(value));
+        return Result(__detail::OkTag{}, std::move(value));
     }
 
     /**
@@ -238,7 +198,7 @@ public:
      */
     static auto Err(const E &error) -> Result
     {
-        return Result(ErrTag{}, error);
+        return Result(__detail::ErrTag{}, error);
     }
 
     /**
@@ -248,7 +208,7 @@ public:
      */
     static auto Err(E &&error) -> Result
     {
-        return Result(ErrTag{}, std::move(error));
+        return Result(__detail::ErrTag{}, std::move(error));
     }
 
     // ======================================================================
@@ -261,7 +221,7 @@ public:
      */
     [[nodiscard]] auto is_ok() const -> bool
     {
-        return std::holds_alternative<value_type<T>>(data_);
+        return std::holds_alternative<__detail::value_type<T>>(data_);
     }
 
     /**
@@ -273,10 +233,10 @@ public:
      */
     template <typename Pred>
         requires BoolReturning<Pred, T>
-    auto is_ok_and(Pred &&pred) const & -> bool
+    [[nodiscard]] auto is_ok_and(Pred &&pred) const & -> bool
     {
-        return is_ok() &&
-               std::forward<Pred>(pred)(std::get<value_type<T>>(data_).data);
+        return is_ok() && std::forward<Pred>(pred)(
+                              std::get<__detail::value_type<T>>(data_).data);
     }
 
     /**
@@ -288,10 +248,10 @@ public:
      */
     template <typename Pred>
         requires BoolReturning<Pred, T>
-    auto is_ok_and(Pred &&pred) && -> bool
+    [[nodiscard]] auto is_ok_and(Pred &&pred) && -> bool
     {
-        return is_ok() && std::forward<Pred>(pred)(
-                              std::move(std::get<value_type<T>>(data_).data));
+        return is_ok() && std::forward<Pred>(pred)(std::move(
+                              std::get<__detail::value_type<T>>(data_).data));
     }
 
     /**
@@ -300,7 +260,7 @@ public:
      */
     [[nodiscard]] auto is_err() const -> bool
     {
-        return std::holds_alternative<error_type<E>>(data_);
+        return std::holds_alternative<__detail::error_type<E>>(data_);
     }
 
     /**
@@ -312,10 +272,10 @@ public:
      */
     template <typename Pred>
         requires BoolReturning<Pred, E>
-    auto is_err_and(Pred &&pred) const & -> bool
+    [[nodiscard]] auto is_err_and(Pred &&pred) const & -> bool
     {
-        return is_err() &&
-               std::forward<Pred>(pred)(std::get<error_type<E>>(data_).data);
+        return is_err() && std::forward<Pred>(pred)(
+                               std::get<__detail::error_type<E>>(data_).data);
     }
 
     /**
@@ -327,10 +287,10 @@ public:
      */
     template <typename Pred>
         requires BoolReturning<Pred, E>
-    auto is_err_and(Pred &&pred) && -> bool
+    [[nodiscard]] auto is_err_and(Pred &&pred) && -> bool
     {
-        return is_err() && std::forward<Pred>(pred)(
-                               std::move(std::get<error_type<E>>(data_).data));
+        return is_err() && std::forward<Pred>(pred)(std::move(
+                               std::get<__detail::error_type<E>>(data_).data));
     }
 
     // ======================================================================
@@ -343,9 +303,10 @@ public:
      * @return std::optional<T> containing the value if Ok, std::nullopt
      * otherwise
      */
-    auto ok() const & -> std::optional<T>
+    [[nodiscard]] auto ok() const & -> std::optional<T>
     {
-        return is_ok() ? std::optional<T>(std::get<value_type<T>>(data_).data)
+        return is_ok() ? std::optional<T>(
+                             std::get<__detail::value_type<T>>(data_).data)
                        : std::nullopt;
     }
 
@@ -354,11 +315,11 @@ public:
      * @return std::optional<T> containing the moved value if Ok, std::nullopt
      * otherwise
      */
-    auto ok() && -> std::optional<T>
+    [[nodiscard]] auto ok() && -> std::optional<T>
     {
         if (is_ok()) {
             return std::optional<T>(
-                std::move(std::get<value_type<T>>(data_).data));
+                std::move(std::get<__detail::value_type<T>>(data_).data));
         }
         return std::nullopt;
     }
@@ -369,10 +330,11 @@ public:
      * @return std::optional<E> containing the error if Err, std::nullopt
      * otherwise
      */
-    auto err() const & -> std::optional<E>
+    [[nodiscard]] auto err() const & -> std::optional<E>
     {
         if (is_err()) {
-            return std::optional<E>(std::get<error_type<E>>(data_).data);
+            return std::optional<E>(
+                std::get<__detail::error_type<E>>(data_).data);
         }
         return std::nullopt;
     }
@@ -383,11 +345,11 @@ public:
      * @return std::optional<E> containing the moved error if Err, std::nullopt
      * otherwise
      */
-    auto err() && -> std::optional<E>
+    [[nodiscard]] auto err() && -> std::optional<E>
     {
         if (is_err()) {
             return std::optional<E>(
-                std::move(std::get<error_type<E>>(data_).data));
+                std::move(std::get<__detail::error_type<E>>(data_).data));
         }
         return std::nullopt;
     }
@@ -409,10 +371,10 @@ public:
     {
         using U = std::invoke_result_t<FnOk, T>;
         if (is_ok()) {
-            return Result<U, E>::Ok(
-                std::forward<FnOk>(fn)(std::get<value_type<T>>(data_).data));
+            return Result<U, E>::Ok(std::forward<FnOk>(fn)(
+                std::get<__detail::value_type<T>>(data_).data));
         }
-        return Result<U, E>::Err(std::get<error_type<E>>(data_).data);
+        return Result<U, E>::Err(std::get<__detail::error_type<E>>(data_).data);
     }
 
     /**
@@ -428,10 +390,10 @@ public:
         using U = std::invoke_result_t<FnOk, T>;
         if (is_ok()) {
             return Result<U, E>::Ok(std::forward<FnOk>(fn)(
-                std::move(std::get<value_type<T>>(data_).data)));
+                std::move(std::get<__detail::value_type<T>>(data_).data)));
         }
         return Result<U, E>::Err(
-            std::move(std::get<error_type<E>>(data_).data));
+            std::move(std::get<__detail::error_type<E>>(data_).data));
     }
 
     /**
@@ -447,7 +409,8 @@ public:
     constexpr auto map_or(const U &default_val, FnOk &&fn) const & -> U
     {
         if (is_ok()) {
-            return std::forward<FnOk>(fn)(std::get<value_type<T>>(data_).data);
+            return std::forward<FnOk>(fn)(
+                std::get<__detail::value_type<T>>(data_).data);
         }
         return default_val;
     }
@@ -466,7 +429,7 @@ public:
     {
         if (is_ok()) {
             return std::forward<FnMap>(fn)(std::forward<T>(
-                std::move(std::get<value_type<T>>(data_).data)));
+                std::move(std::get<__detail::value_type<T>>(data_).data)));
         }
         return default_val;
     }
@@ -480,9 +443,10 @@ public:
     {
         if (is_ok()) {
             return std::forward<FnOk>(fn_ok)(
-                std::get<value_type<T>>(data_).data);
+                std::get<__detail::value_type<T>>(data_).data);
         }
-        return std::forward<FnErr>(fn_err)(std::get<error_type<E>>(data_).data);
+        return std::forward<FnErr>(fn_err)(
+            std::get<__detail::error_type<E>>(data_).data);
     }
 
     template <typename FnErr, typename FnOk>
@@ -493,10 +457,77 @@ public:
     {
         if (is_ok()) {
             return std::forward<FnOk>(fn_ok)(
-                std::move(std::get<value_type<T>>(data_).data));
+                std::move(std::get<__detail::value_type<T>>(data_).data));
         }
         return std::forward<FnErr>(fn_err)(
-            std::move(std::get<error_type<E>>(data_).data));
+            std::move(std::get<__detail::error_type<E>>(data_).data));
+    }
+
+    template <typename FnErr>
+    constexpr auto
+    map_err(FnErr &&fn) const & -> Result<T, std::invoke_result_t<FnErr, E>>
+    {
+        using V = std::invoke_result_t<FnErr, E>;
+        if (is_err()) {
+            return Result<T, V>::Err(std::forward<FnErr>(fn)(
+                std::get<__detail::error_type<E>>(data_).data));
+        }
+        return Result<T, V>::Ok(std::get<__detail::value_type<T>>(data_).data);
+    }
+
+    template <typename FnErr>
+    constexpr auto
+    map_err(FnErr &&fn) && -> Result<T, std::invoke_result_t<FnErr, E>>
+    {
+        using V = std::invoke_result_t<FnErr, E>;
+        if (is_err()) {
+            return Result<T, V>::Err(std::forward<FnErr>(fn)(
+                std::move(std::get<__detail::error_type<E>>(data_).data)));
+        }
+        return Result<T, V>::Ok(
+            std::move(std::get<__detail::value_type<T>>(data_).data));
+    }
+
+    template <typename Fn>
+        requires VoidReturning<Fn, T>
+    constexpr auto inspect(Fn &&fn) const & -> const Result &
+    {
+        if (is_ok()) {
+            std::forward<Fn>(fn)(std::get<__detail::value_type<T>>(data_).data);
+        }
+        return *this;
+    }
+
+    template <typename Fn>
+        requires VoidReturning<Fn, T>
+    constexpr auto inspect(Fn &&fn) && -> Result &&
+    {
+        if (is_ok()) {
+            std::forward<Fn>(fn)(
+                std::move(std::get<__detail::value_type<T>>(data_).data));
+        }
+        return std::move(*this);
+    }
+
+    template <typename Fn>
+        requires VoidReturning<Fn, E>
+    constexpr auto inspect_err(Fn &&fn) const & -> const Result &
+    {
+        if (is_err()) {
+            std::forward<Fn>(fn)(std::get<__detail::error_type<E>>(data_).data);
+        }
+        return *this;
+    }
+
+    template <typename Fn>
+        requires VoidReturning<Fn, E>
+    constexpr auto inspect_err(Fn &&fn) && -> Result &&
+    {
+        if (is_err()) {
+            std::forward<Fn>(fn)(
+                std::move(std::get<__detail::error_type<E>>(data_).data));
+        }
+        return std::move(*this);
     }
 
     // ======================================================================
@@ -512,9 +543,9 @@ public:
     auto expect(const char *msg) const & -> T
     {
         if (is_ok()) {
-            return std::get<value_type<T>>(data_).data;
+            return std::get<__detail::value_type<T>>(data_).data;
         }
-        const E &e = std::get<error_type<E>>(data_).data;
+        const E &e = std::get<__detail::error_type<E>>(data_).data;
         unwrap_failed(msg, e);
     }
 
@@ -527,9 +558,9 @@ public:
     auto expect(const char *msg) && -> T
     {
         if (is_ok()) {
-            return std::move(std::get<value_type<T>>(data_).data);
+            return std::move(std::get<__detail::value_type<T>>(data_).data);
         }
-        const E &e = std::get<error_type<E>>(data_).data;
+        const E &e = std::get<__detail::error_type<E>>(data_).data;
         unwrap_failed(msg, e);
     }
 
@@ -541,9 +572,9 @@ public:
     auto unwrap() const & -> T
     {
         if (is_ok()) {
-            return std::get<value_type<T>>(data_).data;
+            return std::get<__detail::value_type<T>>(data_).data;
         }
-        const E &e = std::get<error_type<E>>(data_).data;
+        const E &e = std::get<__detail::error_type<E>>(data_).data;
         unwrap_failed("called `Result::unwrap()` on an `Err` value", e);
     }
 
@@ -555,9 +586,9 @@ public:
     auto unwrap() && -> T
     {
         if (is_ok()) {
-            return std::move(std::get<value_type<T>>(data_).data);
+            return std::move(std::get<__detail::value_type<T>>(data_).data);
         }
-        const E &e = std::get<error_type<E>>(data_).data;
+        const E &e = std::get<__detail::error_type<E>>(data_).data;
         unwrap_failed("called `Result::unwrap()` on an `Err` value", e);
     }
 
@@ -570,7 +601,7 @@ public:
         requires DefaultConstructible<T>
     {
         if (is_ok()) {
-            return std::get<value_type<T>>(data_).data;
+            return std::get<__detail::value_type<T>>(data_).data;
         }
         return T{};
     }
@@ -585,7 +616,7 @@ public:
         requires DefaultConstructible<T>
     {
         if (is_ok()) {
-            return std::move(std::get<value_type<T>>(data_).data);
+            return std::move(std::get<__detail::value_type<T>>(data_).data);
         }
         return T{};
     }
@@ -599,9 +630,9 @@ public:
     auto expect_err(const char *msg) const & -> E
     {
         if (is_err()) {
-            return std::get<error_type<E>>(data_).data;
+            return std::get<__detail::error_type<E>>(data_).data;
         }
-        const T &v = std::get<value_type<T>>(data_).data;
+        const T &v = std::get<__detail::value_type<T>>(data_).data;
         unwrap_failed(msg, v);
     }
 
@@ -614,9 +645,9 @@ public:
     auto expect_err(const char *msg) && -> E
     {
         if (is_err()) {
-            return std::move(std::get<error_type<E>>(data_).data);
+            return std::move(std::get<__detail::error_type<E>>(data_).data);
         }
-        const T &v = std::get<value_type<T>>(data_).data;
+        const T &v = std::get<__detail::value_type<T>>(data_).data;
         unwrap_failed(msg, v);
     }
 
@@ -628,9 +659,9 @@ public:
     auto unwrap_err() const & -> E
     {
         if (is_err()) {
-            return std::get<error_type<E>>(data_).data;
+            return std::get<__detail::error_type<E>>(data_).data;
         }
-        const T &v = std::get<value_type<T>>(data_).data;
+        const T &v = std::get<__detail::value_type<T>>(data_).data;
         unwrap_failed("called `Result::unwrap_err()` on an `Ok` value", v);
     }
 
@@ -642,9 +673,9 @@ public:
     auto unwrap_err() && -> E
     {
         if (is_err()) {
-            return std::move(std::get<error_type<E>>(data_).data);
+            return std::move(std::get<__detail::error_type<E>>(data_).data);
         }
-        const T &v = std::get<value_type<T>>(data_).data;
+        const T &v = std::get<__detail::value_type<T>>(data_).data;
         unwrap_failed("called `Result::unwrap_err()` on an `Ok` value", v);
     }
 };
@@ -663,7 +694,7 @@ public:
 template <typename U, typename V>
 [[nodiscard]] auto Ok(const U &v) -> Result<U, V>
 {
-    return Result<U, V>(OkTag{}, v);
+    return Result<U, V>(__detail::OkTag{}, v);
 }
 
 /**
@@ -675,7 +706,7 @@ template <typename U, typename V>
  */
 template <typename U, typename V> [[nodiscard]] auto Ok(U &&v) -> Result<U, V>
 {
-    return Result<U, V>(OkTag{}, std::move(v));
+    return Result<U, V>(__detail::OkTag{}, std::move(v));
 }
 
 /**
@@ -688,7 +719,7 @@ template <typename U, typename V> [[nodiscard]] auto Ok(U &&v) -> Result<U, V>
 template <typename U, typename V>
 [[nodiscard]] auto Err(const V &e) -> Result<U, V>
 {
-    return Result<U, V>(ErrTag{}, e);
+    return Result<U, V>(__detail::ErrTag{}, e);
 }
 
 /**
@@ -700,7 +731,7 @@ template <typename U, typename V>
  */
 template <typename U, typename V> [[nodiscard]] auto Err(V &&e) -> Result<U, V>
 {
-    return Result<U, V>(ErrTag{}, std::move(e));
+    return Result<U, V>(__detail::ErrTag{}, std::move(e));
 }
 
 } // namespace rstd
