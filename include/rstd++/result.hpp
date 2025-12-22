@@ -276,20 +276,6 @@ public:
      */
     template <typename Pred>
     auto is_ok_and(Pred pred) const & -> bool
-        requires NotVoid<T>
-    {
-        return is_ok() && pred(std::get<value_type<T>>(data).data);
-    }
-
-    /**
-     * @brief Check if the result is Ok and satisfies a predicate (const lvalue, Void T)
-     * @tparam Pred Predicate function type
-     * @param pred Predicate that takes const Void& and returns bool
-     * @return true if Ok and predicate returns true, false otherwise
-     */
-    template <typename Pred>
-    auto is_ok_and(Pred pred) const & -> bool
-        requires IsVoid<T>
     {
         return is_ok() && pred(std::get<value_type<T>>(data).data);
     }
@@ -302,20 +288,6 @@ public:
      */
     template <typename Pred>
     auto is_ok_and(Pred pred) && -> bool
-        requires NotVoid<T>
-    {
-        return is_ok() && pred(std::move(std::get<value_type<T>>(data).data));
-    }
-
-    /**
-     * @brief Check if the result is Ok and satisfies a predicate (rvalue, Void T)
-     * @tparam Pred Predicate function type
-     * @param pred Predicate that takes Void&& and returns bool
-     * @return true if Ok and predicate returns true, false otherwise
-     */
-    template <typename Pred>
-    auto is_ok_and(Pred pred) && -> bool
-        requires IsVoid<T>
     {
         return is_ok() && pred(std::move(std::get<value_type<T>>(data).data));
     }
@@ -337,20 +309,6 @@ public:
      */
     template <typename Pred>
     auto is_err_and(Pred pred) const & -> bool
-        requires NotVoid<E>
-    {
-        return is_err() && pred(std::get<error_type<E>>(data).data);
-    }
-
-    /**
-     * @brief Check if the result is Err and satisfies a predicate (const lvalue, Void E)
-     * @tparam Pred Predicate function type
-     * @param pred Predicate that takes const Void& and returns bool
-     * @return true if Err and predicate returns true, false otherwise
-     */
-    template <typename Pred>
-    auto is_err_and(Pred pred) const & -> bool
-        requires IsVoid<E>
     {
         return is_err() && pred(std::get<error_type<E>>(data).data);
     }
@@ -363,20 +321,6 @@ public:
      */
     template <typename Pred>
     auto is_err_and(Pred pred) && -> bool
-        requires NotVoid<E>
-    {
-        return is_err() && pred(std::move(std::get<error_type<E>>(data).data));
-    }
-
-    /**
-     * @brief Check if the result is Err and satisfies a predicate (rvalue, Void E)
-     * @tparam Pred Predicate function type
-     * @param pred Predicate that takes Void&& and returns bool
-     * @return true if Err and predicate returns true, false otherwise
-     */
-    template <typename Pred>
-    auto is_err_and(Pred pred) && -> bool
-        requires IsVoid<E>
     {
         return is_err() && pred(std::move(std::get<error_type<E>>(data).data));
     }
