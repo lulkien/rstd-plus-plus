@@ -20,6 +20,8 @@
 namespace rstd
 {
 
+template <typename T, typename E> class Result;
+
 namespace __detail
 {
 
@@ -76,64 +78,32 @@ template <typename E> struct error_type
      */
     error_type(E &&e) : data{std::move(e)} {}
 };
+
+template <typename> struct is_result_helper : std::false_type
+{};
+
+template <typename U, typename V>
+struct is_result_helper<Result<U, V>> : std::true_type
+{};
+
+template <typename T>
+concept is_result_v = is_result_helper<std::remove_cvref_t<T>>::value;
+
 } // namespace __detail
 
-/**
- * @brief A type representing either success (Ok) or failure (Err)
- *
- * Result<T, E> is a type that represents either success with a value of type T,
- * or failure with an error of type E. Both T and E can be Void.
- *
- * This provides a type-safe way to handle errors without exceptions, inspired
- * by Rust's Result type.
- *
- * @tparam T The type of the success value (can be Void)
- * @tparam E The type of the error value (can be Void)
- *
- * @example
- * ```cpp
- * Result<int, std::string> divide(int a, int b) {
- *     if (b == 0) {
- *         return Result<int, std::string>::Err("Division by zero");
- *     }
- *     return Result<int, std::string>::Ok(a / b);
- * }
- *
- * auto result = divide(10, 2);
- * if (result.is_ok()) {
- *     std::cout << "Result: " << result.unwrap() << std::endl;
- * }
- * ```
- */
-template <typename T, typename E> class Result
+template <typename T, typename E> class [[nodiscard]] Result
 {
     std::variant<__detail::value_type<T>, __detail::error_type<E>>
         data_; ///< Internal storage for either Ok or Err
 
-    /**
-     * @brief Private constructor for Ok variant with const reference
-     * @param v The value to store
-     */
     Result(__detail::OkTag, const T &v) : data_{__detail::value_type<T>{v}} {}
 
-    /**
-     * @brief Private constructor for Ok variant with rvalue reference
-     * @param v The value to move
-     */
     Result(__detail::OkTag, T &&v)
         : data_{__detail::value_type<T>{std::move(v)}}
     {}
 
-    /**
-     * @brief Private constructor for Err variant with const reference
-     * @param e The error to store
-     */
     Result(__detail::ErrTag, const E &e) : data_{__detail::error_type<E>{e}} {}
 
-    /**
-     * @brief Private constructor for Err variant with rvalue reference
-     * @param e The error to move
-     */
     Result(__detail::ErrTag, E &&e)
         : data_{__detail::error_type<E>{std::move(e)}}
     {}
@@ -171,41 +141,21 @@ public:
     // Object creations
     // ======================================================================
 
-    /**
-     * @brief Create an Ok result with a const reference value
-     * @param value The value to store
-     * @return A Result containing the Ok value
-     */
     static auto Ok(const T &value) -> Result
     {
         return Result(__detail::OkTag{}, value);
     }
 
-    /**
-     * @brief Create an Ok result with an rvalue reference value
-     * @param value The value to move
-     * @return A Result containing the Ok value
-     */
     static auto Ok(T &&value) -> Result
     {
         return Result(__detail::OkTag{}, std::move(value));
     }
 
-    /**
-     * @brief Create an Err result with a const reference error
-     * @param error The error to store
-     * @return A Result containing the Err value
-     */
     static auto Err(const E &error) -> Result
     {
         return Result(__detail::ErrTag{}, error);
     }
 
-    /**
-     * @brief Create an Err result with an rvalue reference error
-     * @param error The error to move
-     * @return A Result containing the Err value
-     */
     static auto Err(E &&error) -> Result
     {
         return Result(__detail::ErrTag{}, std::move(error));
@@ -215,22 +165,11 @@ public:
     // Querying the contained values
     // ======================================================================
 
-    /**
-     * @brief Check if the result is Ok
-     * @return true if the result contains an Ok value, false otherwise
-     */
     [[nodiscard]] auto is_ok() const -> bool
     {
         return std::holds_alternative<__detail::value_type<T>>(data_);
     }
 
-    /**
-     * @brief Check if the result is Ok and the value satisfies a predicate
-     * (const lvalue)
-     * @tparam Pred Predicate function type
-     * @param pred Predicate that takes const T& and returns bool
-     * @return true if Ok and predicate returns true, false otherwise
-     */
     template <typename Pred>
         requires BoolReturning<Pred, T>
     [[nodiscard]] auto is_ok_and(Pred &&pred) const & -> bool
@@ -239,13 +178,6 @@ public:
                               std::get<__detail::value_type<T>>(data_).data);
     }
 
-    /**
-     * @brief Check if the result is Ok and the value satisfies a predicate
-     * (rvalue)
-     * @tparam Pred Predicate function type
-     * @param pred Predicate that takes T&& and returns bool
-     * @return true if Ok and predicate returns true, false otherwise
-     */
     template <typename Pred>
         requires BoolReturning<Pred, T>
     [[nodiscard]] auto is_ok_and(Pred &&pred) && -> bool
@@ -254,22 +186,11 @@ public:
                               std::get<__detail::value_type<T>>(data_).data));
     }
 
-    /**
-     * @brief Check if the result is Err
-     * @return true if the result contains an Err value, false otherwise
-     */
     [[nodiscard]] auto is_err() const -> bool
     {
         return std::holds_alternative<__detail::error_type<E>>(data_);
     }
 
-    /**
-     * @brief Check if the result is Err and the error satisfies a predicate
-     * (const lvalue)
-     * @tparam Pred Predicate function type
-     * @param pred Predicate that takes const E& and returns bool
-     * @return true if Err and predicate returns true, false otherwise
-     */
     template <typename Pred>
         requires BoolReturning<Pred, E>
     [[nodiscard]] auto is_err_and(Pred &&pred) const & -> bool
@@ -278,13 +199,6 @@ public:
                                std::get<__detail::error_type<E>>(data_).data);
     }
 
-    /**
-     * @brief Check if the result is Err and the error satisfies a predicate
-     * (rvalue)
-     * @tparam Pred Predicate function type
-     * @param pred Predicate that takes E&& and returns bool
-     * @return true if Err and predicate returns true, false otherwise
-     */
     template <typename Pred>
         requires BoolReturning<Pred, E>
     [[nodiscard]] auto is_err_and(Pred &&pred) && -> bool
@@ -297,12 +211,6 @@ public:
     // Adapter for each variant
     // ======================================================================
 
-    /**
-     * @brief Convert the Result to an optional containing the Ok value (const
-     * lvalue)
-     * @return std::optional<T> containing the value if Ok, std::nullopt
-     * otherwise
-     */
     [[nodiscard]] auto ok() const & -> std::optional<T>
     {
         return is_ok() ? std::optional<T>(
@@ -310,11 +218,6 @@ public:
                        : std::nullopt;
     }
 
-    /**
-     * @brief Convert the Result to an optional containing the Ok value (rvalue)
-     * @return std::optional<T> containing the moved value if Ok, std::nullopt
-     * otherwise
-     */
     [[nodiscard]] auto ok() && -> std::optional<T>
     {
         if (is_ok()) {
@@ -324,12 +227,6 @@ public:
         return std::nullopt;
     }
 
-    /**
-     * @brief Convert the Result to an optional containing the Err value (const
-     * lvalue)
-     * @return std::optional<E> containing the error if Err, std::nullopt
-     * otherwise
-     */
     [[nodiscard]] auto err() const & -> std::optional<E>
     {
         if (is_err()) {
@@ -339,12 +236,6 @@ public:
         return std::nullopt;
     }
 
-    /**
-     * @brief Convert the Result to an optional containing the Err value
-     * (rvalue)
-     * @return std::optional<E> containing the moved error if Err, std::nullopt
-     * otherwise
-     */
     [[nodiscard]] auto err() && -> std::optional<E>
     {
         if (is_err()) {
@@ -358,13 +249,6 @@ public:
     // Transforming contained values
     // ======================================================================
 
-    /**
-     * @brief Map the Ok value to a new value using a function (const lvalue)
-     * @tparam Fn Function type
-     * @param fn Function that takes const T& and returns U
-     * @return Result<U, E> with the transformed value if Ok, or the original
-     * error if Err
-     */
     template <typename FnOk>
     constexpr auto
     map(FnOk &&fn) const & -> Result<std::invoke_result_t<FnOk, T>, E>
@@ -377,13 +261,6 @@ public:
         return Result<U, E>::Err(std::get<__detail::error_type<E>>(data_).data);
     }
 
-    /**
-     * @brief Map the Ok value to a new value using a function (rvalue)
-     * @tparam Fn Function type
-     * @param fn Function that takes T&& and returns U
-     * @return Result<U, E> with the transformed value if Ok, or the original
-     * error if Err
-     */
     template <typename FnOk>
     constexpr auto map(FnOk &&fn) && -> Result<std::invoke_result_t<FnOk, T>, E>
     {
@@ -396,14 +273,6 @@ public:
             std::move(std::get<__detail::error_type<E>>(data_).data));
     }
 
-    /**
-     * @brief Map the Ok value or return a default value (const lvalue)
-     * @tparam U Return type
-     * @tparam Fn Function type
-     * @param default_val Default value to return if Err
-     * @param fn Function that takes const T& and returns U
-     * @return The result of fn(value) if Ok, or default_val if Err
-     */
     template <typename U, typename FnOk>
         requires std::is_same_v<U, std::invoke_result_t<FnOk, T>>
     constexpr auto map_or(const U &default_val, FnOk &&fn) const & -> U
@@ -415,14 +284,6 @@ public:
         return default_val;
     }
 
-    /**
-     * @brief Map the Ok value or return a default value (rvalue)
-     * @tparam U Return type
-     * @tparam Fn Function type
-     * @param default_val Default value to return if Err
-     * @param fn Function that takes T&& and returns U
-     * @return The result of fn(value) if Ok, or default_val if Err
-     */
     template <typename U, typename FnMap>
         requires std::is_same_v<U, std::invoke_result_t<FnMap, T>>
     constexpr auto map_or(const U &default_val, FnMap &&fn) && -> U
@@ -534,12 +395,6 @@ public:
     // Extract a value
     // ======================================================================
 
-    /**
-     * @brief Extract the Ok value with a custom error message (const lvalue)
-     * @param msg Error message to use if Result is Err
-     * @return The contained value
-     * @throws std::runtime_error if the Result is Err
-     */
     auto expect(const char *msg) const & -> T
     {
         if (is_ok()) {
@@ -549,12 +404,6 @@ public:
         unwrap_failed(msg, e);
     }
 
-    /**
-     * @brief Extract the Ok value with a custom error message (rvalue)
-     * @param msg Error message to use if Result is Err
-     * @return The contained value (moved)
-     * @throws std::runtime_error if the Result is Err
-     */
     auto expect(const char *msg) && -> T
     {
         if (is_ok()) {
@@ -564,11 +413,6 @@ public:
         unwrap_failed(msg, e);
     }
 
-    /**
-     * @brief Extract the Ok value (const lvalue)
-     * @return The contained value
-     * @throws std::runtime_error if the Result is Err
-     */
     auto unwrap() const & -> T
     {
         if (is_ok()) {
@@ -578,11 +422,6 @@ public:
         unwrap_failed("called `Result::unwrap()` on an `Err` value", e);
     }
 
-    /**
-     * @brief Extract the Ok value (rvalue)
-     * @return The contained value (moved)
-     * @throws std::runtime_error if the Result is Err
-     */
     auto unwrap() && -> T
     {
         if (is_ok()) {
@@ -592,11 +431,6 @@ public:
         unwrap_failed("called `Result::unwrap()` on an `Err` value", e);
     }
 
-    /**
-     * @brief Extract the Ok value or return a default-constructed value (const
-     * lvalue)
-     * @return The contained value if Ok, or a default-constructed T if Err
-     */
     auto unwrap_or_default() const & -> T
         requires DefaultConstructible<T>
     {
@@ -606,12 +440,6 @@ public:
         return T{};
     }
 
-    /**
-     * @brief Extract the Ok value or return a default-constructed value
-     * (rvalue)
-     * @return The contained value (moved) if Ok, or a default-constructed T if
-     * Err
-     */
     auto unwrap_or_default() && -> T
         requires DefaultConstructible<T>
     {
@@ -621,12 +449,6 @@ public:
         return T{};
     }
 
-    /**
-     * @brief Extract the Err value with a custom error message (const lvalue)
-     * @param msg Error message to use if Result is Ok
-     * @return The contained error
-     * @throws std::runtime_error if the Result is Ok
-     */
     auto expect_err(const char *msg) const & -> E
     {
         if (is_err()) {
@@ -636,12 +458,6 @@ public:
         unwrap_failed(msg, v);
     }
 
-    /**
-     * @brief Extract the Err value with a custom error message (rvalue)
-     * @param msg Error message to use if Result is Ok
-     * @return The contained error
-     * @throws std::runtime_error if the Result is Ok
-     */
     auto expect_err(const char *msg) && -> E
     {
         if (is_err()) {
@@ -651,11 +467,6 @@ public:
         unwrap_failed(msg, v);
     }
 
-    /**
-     * @brief Extract the Err value (const lvalue)
-     * @return The contained error
-     * @throws std::runtime_error if the Result is Ok
-     */
     auto unwrap_err() const & -> E
     {
         if (is_err()) {
@@ -665,11 +476,6 @@ public:
         unwrap_failed("called `Result::unwrap_err()` on an `Ok` value", v);
     }
 
-    /**
-     * @brief Extract the Err value (rvalue)
-     * @return The contained error (moved)
-     * @throws std::runtime_error if the Result is Ok
-     */
     auto unwrap_err() && -> E
     {
         if (is_err()) {
@@ -678,57 +484,82 @@ public:
         const T &v = std::get<__detail::value_type<T>>(data_).data;
         unwrap_failed("called `Result::unwrap_err()` on an `Ok` value", v);
     }
+
+    template <class U>
+    constexpr auto and_(Result<U, E> &res) const & -> Result<U, E>
+    {
+        if (is_ok()) {
+            return res;
+        }
+        return Result<U, E>::Err(std::get<__detail::error_type<E>>(data_).data);
+    }
+
+    template <class U>
+    constexpr auto and_(Result<U, E> &&res) const & -> Result<U, E>
+    {
+        if (is_ok()) {
+            return std::forward<Result<U, E>>(res);
+        }
+        return Result<U, E>::Err(std::get<__detail::error_type<E>>(data_).data);
+    }
+
+    template <class U>
+    constexpr auto and_(Result<U, E> &&res) && -> Result<U, E>
+    {
+        if (is_ok()) {
+            return std::forward<Result<U, E>>(res);
+        }
+        return Result<U, E>::Err(
+            std::move(std::get<__detail::error_type<E>>(data_).data));
+    }
+
+    template <class Fn>
+        requires __detail::is_result_v<std::invoke_result_t<Fn, T>>
+    constexpr auto and_then(Fn &&fn) const &
+    {
+        using Ret = std::invoke_result_t<Fn, T>;
+        if (is_ok()) {
+            return std::forward<Fn>(fn)(
+                std::get<__detail::value_type<T>>(data_).data);
+        }
+        return Ret::Err(std::get<__detail::error_type<E>>(data_).data);
+    }
+
+    template <class Fn>
+        requires __detail::is_result_v<std::invoke_result_t<Fn, T>>
+    constexpr auto and_then(Fn &&fn) &&
+    {
+        using Ret = std::invoke_result_t<Fn, T>;
+        if (is_ok()) {
+            return std::forward<Fn>(fn)(
+                std::move(std::get<__detail::value_type<T>>(data_).data));
+        }
+        return Ret::Err(
+            std::move(std::get<__detail::error_type<E>>(data_).data));
+    }
 };
 
 // ======================================================================
 // Helper factory methods
 // ======================================================================
 
-/**
- * @brief Create an Ok result with a const reference value
- * @tparam U Value type
- * @tparam V Error type
- * @param v The value to store
- * @return Result<U, V> containing the Ok value
- */
 template <typename U, typename V>
 [[nodiscard]] auto Ok(const U &v) -> Result<U, V>
 {
     return Result<U, V>(__detail::OkTag{}, v);
 }
 
-/**
- * @brief Create an Ok result with an rvalue reference value
- * @tparam U Value type
- * @tparam V Error type
- * @param v The value to move
- * @return Result<U, V> containing the Ok value
- */
 template <typename U, typename V> [[nodiscard]] auto Ok(U &&v) -> Result<U, V>
 {
     return Result<U, V>(__detail::OkTag{}, std::move(v));
 }
 
-/**
- * @brief Create an Err result with a const reference error
- * @tparam U Value type
- * @tparam V Error type
- * @param e The error to store
- * @return Result<U, V> containing the Err value
- */
 template <typename U, typename V>
 [[nodiscard]] auto Err(const V &e) -> Result<U, V>
 {
     return Result<U, V>(__detail::ErrTag{}, e);
 }
 
-/**
- * @brief Create an Err result with an rvalue reference error
- * @tparam U Value type
- * @tparam V Error type
- * @param e The error to move
- * @return Result<U, V> containing the Err value
- */
 template <typename U, typename V> [[nodiscard]] auto Err(V &&e) -> Result<U, V>
 {
     return Result<U, V>(__detail::ErrTag{}, std::move(e));
