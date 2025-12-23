@@ -1,12 +1,3 @@
-/**
- * @file result.hpp
- * @brief A Rust-inspired Result type for C++ error handling
- *
- * This file provides a Result<T, E> type that represents either success (Ok) or
- * failure (Err). It offers a type-safe alternative to exceptions and error
- * codes.
- */
-
 #pragma once
 
 #include <optional>
@@ -91,23 +82,56 @@ concept is_result_v = is_result_helper<std::remove_cvref_t<T>>::value;
 
 } // namespace __detail
 
-template <typename T, typename E> class [[nodiscard]] Result
+/*
+ * @class Result
+ * @brief A type-safe wrapper representing either success (Ok) or failure (Err).
+ *
+ * Result is a type that represents either success `Ok` or failure `Err`.
+ * It provides a functional approach to error handling without exceptions.
+ */
+template <typename T, typename E>
+class [[nodiscard("Result must be used")]] Result
 {
     std::variant<__detail::value_type<T>, __detail::error_type<E>>
         data_; ///< Internal storage for either Ok or Err
 
+    /**
+     * @brief Private constructor for Ok variant (copy).
+     * @param tag Ok tag for dispatching
+     * @param v Value to store
+     */
     Result(__detail::OkTag, const T &v) : data_{__detail::value_type<T>{v}} {}
 
+    /**
+     * @brief Private constructor for Ok variant (move).
+     * @param tag Ok tag for dispatching
+     * @param v Value to store
+     */
     Result(__detail::OkTag, T &&v)
-        : data_{__detail::value_type<T>{std::move(v)}}
+        : data_{__detail::value_type<T>{std::forward<T>(v)}}
     {}
 
+    /**
+     * @brief Private constructor for Err variant (copy).
+     * @param tag Err tag for dispatching
+     * @param e Error to store
+     */
     Result(__detail::ErrTag, const E &e) : data_{__detail::error_type<E>{e}} {}
 
+    /**
+     * @brief Private constructor for Err variant (move).
+     * @param tag Err tag for dispatching
+     * @param e Error to store
+     */
     Result(__detail::ErrTag, E &&e)
-        : data_{__detail::error_type<E>{std::move(e)}}
+        : data_{__detail::error_type<E>{std::forward<E>(e)}}
     {}
 
+    /**
+     * @brief Helper for unwrap failure with printable types.
+     * @param msg Error message
+     * @param value The value that caused failure
+     */
     template <typename panic_type>
     [[noreturn]] void unwrap_failed(const char *msg,
                                     const panic_type &value) const
@@ -118,6 +142,11 @@ template <typename T, typename E> class [[nodiscard]] Result
         throw std::runtime_error(oss.str());
     }
 
+    /**
+     * @brief Helper for unwrap failure with non-printable types.
+     * @param msg Error message
+     * @param value The value that caused failure
+     */
     template <typename panic_type>
     [[noreturn]] [[deprecated(
         "Use printable types or provide operator<< overload.")]]
@@ -141,22 +170,44 @@ public:
     // Object creations
     // ======================================================================
 
-    static auto Ok(const T &value) -> Result
+    /**
+     * @brief Creates a successful Result with a copy of the value.
+     * @param value The success value to store
+     * @return Result containing the value
+     */
+    [[nodiscard("Result must be used")]] static auto Ok(const T &value)
+        -> Result
     {
         return Result(__detail::OkTag{}, value);
     }
 
-    static auto Ok(T &&value) -> Result
+    /**
+     * @brief Creates a successful Result by moving the value.
+     * @param value The success value to move
+     * @return Result containing the moved value
+     */
+    [[nodiscard("Result must be used")]] static auto Ok(T &&value) -> Result
     {
         return Result(__detail::OkTag{}, std::move(value));
     }
 
-    static auto Err(const E &error) -> Result
+    /**
+     * @brief Creates a failed Result with a copy of the error.
+     * @param error The error value to store
+     * @return Result containing the error
+     */
+    [[nodiscard("Result must be used")]] static auto Err(const E &error)
+        -> Result
     {
         return Result(__detail::ErrTag{}, error);
     }
 
-    static auto Err(E &&error) -> Result
+    /**
+     * @brief Creates a failed Result by moving the error.
+     * @param error The error value to move
+     * @return Result containing the moved error
+     */
+    [[nodiscard("Result must be used")]] static auto Err(E &&error) -> Result
     {
         return Result(__detail::ErrTag{}, std::move(error));
     }
@@ -165,11 +216,46 @@ public:
     // Querying the contained values
     // ======================================================================
 
+    /**
+     * @brief Checks if the Result contains a value (Ok).
+     *
+     * Returns `true` if the result is Ok.
+     *
+     * Examples:
+     * @code{.cpp}
+     * auto x = Result<int, const char*>::Ok(5);
+     * assert(x.is_ok() == true);
+     *
+     * auto x = Result<int, const char*>::Err("Some error message");
+     * assert(x.is_ok() == false);
+     * @endcode
+     */
     [[nodiscard]] auto is_ok() const -> bool
     {
         return std::holds_alternative<__detail::value_type<T>>(data_);
     }
 
+    /**
+     * @brief Checks if Result is Ok and value satisfies predicate (const ref).
+     *
+     * Returns `true` if the result is (Ok) and the value inside satisfies
+     * predicate.
+     *
+     * Examples:
+     * @code{.cpp}
+     * auto x = Result<int, const char*>::Ok(5);
+     * auto y = x.is_ok_and([](const int& val) -> bool { return val > 0; })
+     * assert(y == true);
+     *
+     * auto x = Result<int, const char*>::Ok(0);
+     * auto y = x.is_ok_and([](const int& val) -> bool { return val > 0; })
+     * assert(y == false);
+     *
+     * auto x = Result<int, const char*>::Err("Some error message");
+     * auto y = x.is_ok_and([](const int& val) -> bool { return val > 0; })
+     * assert(y == false);
+     * @endcode
+     */
     template <typename Pred>
         requires BoolReturning<Pred, T>
     [[nodiscard]] auto is_ok_and(Pred &&pred) const & -> bool
@@ -178,6 +264,30 @@ public:
                               std::get<__detail::value_type<T>>(data_).data);
     }
 
+    /**
+     * @brief Checks if Result is Ok and value satisfies predicate (rvalue ref).
+     *
+     * Returns `true` if the result is (Ok) and the value inside satisfies
+     * predicate.
+     *
+     * Examples:
+     * @code{.cpp}
+     * auto x = Result<int, const char*>::Ok(5).is_ok_and(
+     *              [](const int& val) -> bool { return val > 0; }
+     *          )
+     * assert(x == true);
+     *
+     * auto x = Result<int, const char*>::Ok(0).is_ok_and(
+                    [](const int& val) -> bool { return val > 0; }
+                )
+     * assert(x == false);
+     *
+     * auto x = Result<int, const char*>::Err("Some error message").is_ok_and(
+                    [](const int& val) -> bool { return val > 0; }
+                )
+     * assert(x == false);
+     * @endcode
+     */
     template <typename Pred>
         requires BoolReturning<Pred, T>
     [[nodiscard]] auto is_ok_and(Pred &&pred) && -> bool
@@ -186,11 +296,46 @@ public:
                               std::get<__detail::value_type<T>>(data_).data));
     }
 
+    /**
+     * @brief Checks if the Result contains an error (Err).
+     *
+     * Returns `true` if the result is (Err).
+     *
+     * Examples
+     * @code{.cpp}
+     * auto y = Result<Void, const char*>::Err("Some error message");
+     * assert(x.is_err() == true);
+     *
+     * auto x = Result<int, Void>::Ok(5);
+     * assert(x.is_err() == false);
+     * @endcode
+     */
     [[nodiscard]] auto is_err() const -> bool
     {
         return std::holds_alternative<__detail::error_type<E>>(data_);
     }
 
+    /**
+     * @brief Checks if Result is Err and error satisfies predicate (const ref).
+     *
+     * Returns `true` if the result is (Err) and the error inside satisfies
+     * predicate.
+     *
+     * Examples:
+     * @code{.cpp}
+     * auto x = Result<Void, int>::Err(127);
+     * auto y = x.is_err_and([](const int& code) -> bool { return code != 0; });
+     * assert(y == true);
+     *
+     * auto x = Result<Void, int>::Err(0);
+     * auto y = x.is_err_and([](const int& code) -> bool { return val != 0; })
+     * assert(y == false);
+     *
+     * auto x = Result<std::string, int>::Err("Some payload data");
+     * auto y = x.is_err_and([](const std::string&) -> bool { return true; })
+     * assert(y == false);
+     * @endcode
+     */
     template <typename Pred>
         requires BoolReturning<Pred, E>
     [[nodiscard]] auto is_err_and(Pred &&pred) const & -> bool
@@ -199,6 +344,28 @@ public:
                                std::get<__detail::error_type<E>>(data_).data);
     }
 
+    /**
+     * @brief Checks if Result is Err and error satisfies predicate
+     *        (rvalue ref).
+     *
+     * Returns `true` if the result is (Err) and the error inside satisfies
+     * predicate.
+     *
+     * Examples:
+     * @code{.cpp}
+     * auto x = Result<Void, int>::Err(127).is_err_and(
+     *              [](const int& code) -> bool { return code != 0; })
+     * assert(x == true);
+     *
+     * auto x = Result<Void, int>::Err(0).is_err_and(
+     *              [](const int& code) -> bool { return code != 0; })
+     * assert(x == false);
+     *
+     * auto x = Result<std::string, int>::Ok("Some payload data").is_err_and(
+     *              [](const std::string&) -> bool { return true; })
+     * assert(x == false);
+     * @endcode
+     */
     template <typename Pred>
         requires BoolReturning<Pred, E>
     [[nodiscard]] auto is_err_and(Pred &&pred) && -> bool
@@ -211,13 +378,49 @@ public:
     // Adapter for each variant
     // ======================================================================
 
+    /**
+     * @brief Converts from `Result<T, E>` to `std::option<T>` (const ref).
+     *
+     * Converts (Ok) into an `std::option<T>`, and discarding the error, if
+     * any.
+     *
+     * Examples:
+     * @code{.cpp}
+     * auto x = Result<int, Void>::Ok(100);
+     * auto y = x.ok();
+     * assert(y.has_value() == true);
+     * assert(y.value() == 100);
+     *
+     * auto x = Result<Void, int>::Err(-99);
+     * auto y = x.ok();
+     * assert(y.has_value() == false);
+     * @endcode
+     */
     [[nodiscard]] auto ok() const & -> std::optional<T>
     {
-        return is_ok() ? std::optional<T>(
-                             std::get<__detail::value_type<T>>(data_).data)
-                       : std::nullopt;
+        if (is_ok()) {
+            return std::optional<T>(
+                std::get<__detail::value_type<T>>(data_).data);
+        }
+        return std::nullopt;
     }
 
+    /**
+     * @brief Converts from `Result<T, E>` to `std::option<T>` (rvalue ref).
+     *
+     * Converts (Ok) into an `std::option<T>`, and discarding the error, if
+     * any.
+     *
+     * Examples:
+     * @code{.cpp}
+     * auto x = Result<int, Void>::Ok(100).ok();
+     * assert(x.has_value() == true);
+     * assert(x.value() == 100);
+     *
+     * auto x = Result<Void, int>::Err(-99).ok();
+     * assert(y.has_value() == false);
+     * @endcode
+     */
     [[nodiscard]] auto ok() && -> std::optional<T>
     {
         if (is_ok()) {
@@ -227,6 +430,24 @@ public:
         return std::nullopt;
     }
 
+    /**
+     * @brief Converts from `Result<T, E>` to `std::option<T>` (const ref).
+     *
+     * Converts (Err) into an `std::option<T>`, and discarding the success
+     * value, if any.
+     *
+     * Examples:
+     * @code{.cpp}
+     * auto x = Result<Void, int>::Err(100);
+     * auto y = x.err();
+     * assert(y.has_value() == true);
+     * assert(y.value() == 100);
+     *
+     * auto x = Result<int, Void>::Ok(-99);
+     * auto y = x.err();
+     * assert(y.has_value() == false);
+     * @endcode
+     */
     [[nodiscard]] auto err() const & -> std::optional<E>
     {
         if (is_err()) {
@@ -236,6 +457,22 @@ public:
         return std::nullopt;
     }
 
+    /**
+     * @brief Converts from `Result<T, E>` to `std::option<T>` (rvalue ref).
+     *
+     * Converts (Err) into an `std::option<T>`, and discarding the success
+     * value, if any.
+     *
+     * Examples:
+     * @code{.cpp}
+     * auto x = Result<Void, int>::Err(100).err();
+     * assert(x.has_value() == true);
+     * assert(x.value() == 100);
+     *
+     * auto x = Result<int, Void>::Ok(-99).err();
+     * assert(y.has_value() == false);
+     * @endcode
+     */
     [[nodiscard]] auto err() && -> std::optional<E>
     {
         if (is_err()) {
@@ -544,23 +781,25 @@ public:
 // ======================================================================
 
 template <typename U, typename V>
-[[nodiscard]] auto Ok(const U &v) -> Result<U, V>
+[[nodiscard("Result must be used")]] auto Ok(const U &v) -> Result<U, V>
 {
     return Result<U, V>(__detail::OkTag{}, v);
 }
 
-template <typename U, typename V> [[nodiscard]] auto Ok(U &&v) -> Result<U, V>
+template <typename U, typename V>
+[[nodiscard("Result must be used")]] auto Ok(U &&v) -> Result<U, V>
 {
     return Result<U, V>(__detail::OkTag{}, std::move(v));
 }
 
 template <typename U, typename V>
-[[nodiscard]] auto Err(const V &e) -> Result<U, V>
+[[nodiscard("Result must be used")]] auto Err(const V &e) -> Result<U, V>
 {
     return Result<U, V>(__detail::ErrTag{}, e);
 }
 
-template <typename U, typename V> [[nodiscard]] auto Err(V &&e) -> Result<U, V>
+template <typename U, typename V>
+[[nodiscard("Result must be used")]] auto Err(V &&e) -> Result<U, V>
 {
     return Result<U, V>(__detail::ErrTag{}, std::move(e));
 }
