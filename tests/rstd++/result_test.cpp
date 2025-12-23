@@ -191,11 +191,22 @@ TEST(ResultTransformTest, OkMapOk)
     });
     EXPECT_TRUE(r3.is_ok());
     EXPECT_EQ(r3.unwrap(), "negative");
+}
 
-    // Chain map test
-    auto year_of_birth = Result<int, Void>::Ok(1998);
-    auto over_18 =
-        year_of_birth.map([](const int &yob) -> int { return 2025 - yob; })
+TEST(ResultTransformTest, ChainOperation)
+{
+    // Chain map test, with r-value
+    constexpr int year_of_birth = 1998;
+    constexpr int current_year = 2025;
+    auto check =
+        Result<int, const char *>::Ok(year_of_birth)
+            .map([](const int &year) -> int { return current_year - year; })
+            .and_then([](const int &age) -> auto {
+                if (age < 0 or age > 200) {
+                    return Result<int, const char *>::Err("Invalid age");
+                }
+                return Result<int, const char *>::Ok(age);
+            })
             .map([](const int &age) -> string {
                 if (age >= 18) {
                     return {"over 18"};
@@ -203,8 +214,8 @@ TEST(ResultTransformTest, OkMapOk)
                 return {"under 18"};
             });
 
-    EXPECT_TRUE(over_18.is_ok());
-    EXPECT_EQ(over_18.unwrap(), "over 18");
+    EXPECT_TRUE(check.is_ok());
+    EXPECT_EQ(check.unwrap(), "over 18");
 }
 
 //
