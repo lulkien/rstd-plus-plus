@@ -170,6 +170,43 @@ TEST(ResultOptionalAdaptor, ErrToNone)
     EXPECT_FALSE(o2.has_value());
 }
 
+TEST(ResultTransformTest, OkMapOk)
+{
+    // Test l-value case
+    auto r1 = Result<int, Void>::Ok(100);
+    auto r2 = r1.map([](const int &value) -> double { return value / 7.0f; });
+
+    EXPECT_TRUE(r2.is_ok());
+    EXPECT_TRUE(f_equal(r2.unwrap(), 100 / 7.0f));
+
+    // Test r-value case
+    auto r3 = Result<int, Void>::Ok(-90).map([](const int &value) -> string {
+        if (value > 0) {
+            return {"positive"};
+        } else if (value < 0) {
+            return {"negative"};
+        } else {
+            return {"zero"};
+        }
+    });
+    EXPECT_TRUE(r3.is_ok());
+    EXPECT_EQ(r3.unwrap(), "negative");
+
+    // Chain map test
+    auto year_of_birth = Result<int, Void>::Ok(1998);
+    auto over_18 =
+        year_of_birth.map([](const int &yob) -> int { return 2025 - yob; })
+            .map([](const int &age) -> string {
+                if (age >= 18) {
+                    return {"over 18"};
+                }
+                return {"under 18"};
+            });
+
+    EXPECT_TRUE(over_18.is_ok());
+    EXPECT_EQ(over_18.unwrap(), "over 18");
+}
+
 //
 // TEST(ResultTransformTest, MapOk)
 // {
