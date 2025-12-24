@@ -486,6 +486,24 @@ public:
     // Transforming contained values
     // ======================================================================
 
+    /**
+     * @brief Maps an (Ok) value to a new type, preserving (Err) (const ref).
+     *
+     * Maps a `Result<T, E>` to `Result<U, E>` by applying a function to a
+     * contained (Ok) value, leaving an (Err) value untouched.
+     *
+     * Examples:
+     * @code
+     * auto x = Result<int, Void>::Ok(100);
+     * auto y = x.map([](const int &value) -> int { return value / 2; });
+     * assert(y.unwrap() == 50);
+     *
+     * auto x = Result<int, const char*>::Err("Error");
+     * auto y = x.map([](const int &value) -> int { return value / 2; });
+     * assert(y.is_err() == true);
+     * assert(y.unwrap_err() == "Error");
+     * @endcode
+     */
     template <typename FnOk>
     constexpr auto
     map(FnOk &&fn) const & -> Result<std::invoke_result_t<FnOk, T>, E>
@@ -498,6 +516,25 @@ public:
         return Result<U, E>::Err(std::get<__detail::error_type<E>>(data_).data);
     }
 
+    /**
+     * @brief Maps an (Ok) value to a new type, preserving (Err) (rvalue ref).
+     *
+     * Maps a `Result<T, E>` to `Result<U, E>` by applying a function to a
+     * contained (Ok) value, leaving an (Err) value untouched.
+     *
+     * Examples:
+     * @code
+     * auto x = Result<int, Void>::Ok(100).map([](const int &value) -> int {
+     *              return value / 2;
+     *          });
+     * assert(x.unwrap() == 50);
+     *
+     * auto x = Result<int, const char*>::Err("Error").map(
+     *              [](const int &value) -> int { return value / 2; });
+     * assert(x.is_err() == true);
+     * assert(x.unwrap_err() == "Error");
+     * @endcode
+     */
     template <typename FnOk>
     constexpr auto map(FnOk &&fn) && -> Result<std::invoke_result_t<FnOk, T>, E>
     {
@@ -510,6 +547,24 @@ public:
             std::move(std::get<__detail::error_type<E>>(data_).data));
     }
 
+    /**
+     * @brief Returns default if Err, otherwise applies function to Ok value
+     * (const ref).
+     *
+     * Return the provided default value if (Err) or apply a function to the
+     * contained (Ok) value.
+     *
+     * Examples:
+     * @code
+     * auto x = Result<int, Void>::Ok(100);
+     * auto y = x.map_or(9999, [](const int &value) -> int { return value / 2;
+     * }); assert(y == 50);
+     *
+     * auto x = Result<int, const char*>::Err("Error");
+     * auto y = x.map_or(9999, [](const int &value) -> int { return value / 2;
+     * }); assert(y == 9999);
+     * @endcode
+     */
     template <typename U, typename FnOk>
         requires std::is_same_v<U, std::invoke_result_t<FnOk, T>>
     constexpr auto map_or(const U &default_val, FnOk &&fn) const & -> U
@@ -521,6 +576,27 @@ public:
         return default_val;
     }
 
+    /**
+     * @brief Returns default if Err, otherwise applies function to Ok value
+     * (rvalue ref).
+     *
+     * Return the provided default value if (Err) or apply a function to the
+     * contained (Ok) value.
+     *
+     * Examples:
+     * @code
+     * auto x = Result<int, Void>::Err({}).map_or(9999,
+     *                                            [](const int &value) -> int {
+     *                                                return value / 2;
+     *                                            });
+     * assert(x == 9999);
+     *
+     * auto x = Result<int, const char*>::Err("Error").map_or(
+     *              1234,
+     *              [](const int &value) -> int { return value / 2; });
+     * assert(x == 1234);
+     * @endcode
+     */
     template <typename U, typename FnMap>
         requires std::is_same_v<U, std::invoke_result_t<FnMap, T>>
     constexpr auto map_or(const U &default_val, FnMap &&fn) && -> U

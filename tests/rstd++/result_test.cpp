@@ -8,6 +8,7 @@
 #include <cmath>
 #include <gtest/gtest.h>
 #include <memory>
+#include <sstream>
 #include <string>
 
 using namespace rstd;
@@ -170,7 +171,7 @@ TEST(ResultOptionalAdaptor, ErrToNone)
     EXPECT_FALSE(o2.has_value());
 }
 
-TEST(ResultTransformTest, OkMapOk)
+TEST(ResultTransformTest, OkMap)
 {
     // Test l-value case
     auto r1 = Result<int, Void>::Ok(100);
@@ -191,6 +192,152 @@ TEST(ResultTransformTest, OkMapOk)
     });
     EXPECT_TRUE(r3.is_ok());
     EXPECT_EQ(r3.unwrap(), "negative");
+}
+
+TEST(ResultTransformTest, ErrMap)
+{
+    // Test l-value case
+    auto r1 = Result<int, Void>::Err(Void{});
+    auto r2 = r1.map([](const int &value) -> double { return value / 7.0f; });
+
+    EXPECT_TRUE(r2.is_err());
+    EXPECT_EQ(r2.unwrap_err(), Void{});
+
+    // Test r-value case
+    auto r3 = Result<int, const char *>::Err("Error").map(
+        [](const int &value) -> string {
+            if (value > 0) {
+                return {"positive"};
+            } else if (value < 0) {
+                return {"negative"};
+            } else {
+                return {"zero"};
+            }
+        });
+    EXPECT_TRUE(r3.is_err());
+    EXPECT_EQ(r3.unwrap_err(), "Error");
+}
+
+TEST(ResultTransformTest, OkMapOr)
+{
+    // Test l-value case
+    auto r1 = Result<int, Void>::Ok(100);
+    auto o1 =
+        r1.map_or(9999, [](const int &value) -> int { return value / 2; });
+    EXPECT_EQ(o1, 50);
+
+    // Test r-value case
+    auto o2 = Result<int, Void>::Ok(99).map_or(string("unknown"),
+                                               [](const int &val) -> string {
+                                                   if (val > 100) {
+                                                       return {"above 100"};
+                                                   } else {
+                                                       return {"below 100"};
+                                                   }
+                                               });
+    EXPECT_EQ(o2, "below 100");
+}
+
+TEST(ResultTransformTest, ErrMapOr)
+{
+
+    // Test l-value case
+    auto r1 = Result<int, Void>::Err({});
+    auto o1 =
+        r1.map_or(-9999, [](const int &value) -> int { return value / 2; });
+    EXPECT_EQ(o1, -9999);
+
+    // Test r-value case
+    auto o2 = Result<int, Void>::Err({}).map_or(string("unknown"),
+                                                [](const int &val) -> string {
+                                                    if (val > 100) {
+                                                        return {"above 100"};
+                                                    } else {
+                                                        return {"below 100"};
+                                                    }
+                                                });
+    EXPECT_EQ(o2, "unknown");
+}
+
+TEST(ResultTransformTest, OkMapOrElse)
+{
+    // Test l-value case
+    auto r1 = Result<int, Void>::Ok(1);
+    auto o1 = r1.map_or_else([](const auto & /*unused*/)
+                                 -> string { return {"Got error"}; },
+                             [](const auto &value) -> string {
+                                 std::stringstream ss;
+                                 ss << "Got value: " << value;
+                                 return ss.str();
+                             });
+    EXPECT_EQ(o1, "Got value: 1");
+
+    // Test r-value case
+    auto o2 = Result<int, Void>::Ok(-99)
+                  .map_or_else([](const auto & /*unused*/)
+                                   -> string { return {"Got error"}; },
+                               [](const auto &value) -> string {
+                                   std::stringstream os;
+                                   os << "Got value: " << value;
+                                   return os.str();
+                               });
+    EXPECT_EQ(o2, "Got value: -99");
+}
+
+TEST(ResultTransformTest, ErrMapOrElse)
+{
+    auto r1 = Result<Void, const char *>::Err("invalid");
+    auto o1 = r1.map_or_else(
+        [](const auto &err) -> string {
+            std::stringstream ss;
+            ss << "Got error: " << err;
+            return ss.str();
+        },
+        [](const auto & /*unused*/) -> string { return {"Got value"}; });
+    EXPECT_EQ(o1, "Got error: invalid");
+
+    auto o2 = Result<Void, const char *>::Err("Unknown").map_or_else(
+        [](const auto &err) -> string {
+            std::stringstream ss;
+            ss << "Got error: " << err;
+            return ss.str();
+        },
+        [](const auto & /*unsused*/) -> string { return {"Got value"}; });
+    EXPECT_EQ(o2, "Got error: Unknown");
+}
+
+TEST(ResultTransformTest, OkMapErr)
+{
+    auto r1 = Result<int, const char *>::Ok(99);
+    auto r2 = r1.map_err([](const auto &err) -> auto {
+        return string("New err: ") + string(err);
+    });
+    EXPECT_TRUE(r2.is_ok());
+    EXPECT_EQ(r2.unwrap(), 99);
+
+    auto r3 =
+        Result<int, const char *>::Ok(99).map_err([](const auto &err) -> auto {
+            return string("Newer err: ") + string(err);
+        });
+    EXPECT_TRUE(r3.is_ok());
+    EXPECT_EQ(r3.unwrap(), 99);
+}
+
+TEST(ResultTransformTest, ErrMapErr)
+{
+    auto r1 = Result<int, const char *>::Err("error");
+    auto r2 = r1.map_err([](const auto &err) -> auto {
+        return string("New err: ") + string(err);
+    });
+    EXPECT_TRUE(r2.is_err());
+    EXPECT_EQ(r2.unwrap_err(), "New err: error");
+
+    auto r3 =
+        Result<int, const char *>::Err("other error").map_err([](const auto &err) -> auto {
+            return string("Newer err: ") + string(err);
+        });
+    EXPECT_TRUE(r3.is_err());
+    EXPECT_EQ(r3.unwrap_err(), "Newer err: other error");
 }
 
 TEST(ResultTransformTest, ChainOperation)
@@ -217,275 +364,3 @@ TEST(ResultTransformTest, ChainOperation)
     EXPECT_TRUE(check.is_ok());
     EXPECT_EQ(check.unwrap(), "over 18");
 }
-
-//
-// TEST(ResultTransformTest, MapOk)
-// {
-//     auto r = Ok<int, string>(42);
-//     auto r2 = r.map([](int x) -> int { return x * 2; });
-//     EXPECT_TRUE(r2.is_ok());
-//     EXPECT_EQ(r2.unwrap(), 84);
-// }
-//
-// TEST(ResultTransformTest, MapOkNonCopy)
-// {
-//     auto r1 = Ok<NonCopyableValue, string>(50);
-//     auto r2 = take(r1).map([](NonCopyableValue &&v) -> NonCopyableValue {
-//     return {v.value * 2}; }); EXPECT_TRUE(r2.is_ok());
-//     EXPECT_EQ(take(r2).unwrap(), 100);
-// }
-//
-// TEST(ResultTransformTest, MapErr)
-// {
-//     auto r = Err<int, string>("MapErr");
-//     auto r2 = r.map([](int x) -> int { return x * 2; });
-//     EXPECT_TRUE(r2.is_err());
-//     EXPECT_EQ(r2.unwrap_err(), "MapErr");
-// }
-//
-// TEST(ResultTransformTest, MapErrNonCopy)
-// {
-//     auto r1 = Err<int, NonCopyableError>("MapErrNonCopy");
-//     auto r2 = take(r1).map([](int x) -> int { return x * 2; });
-//     EXPECT_TRUE(r2.is_err());
-//     EXPECT_EQ(take(r2).unwrap_err(), "MapErrNonCopy");
-// }
-//
-// TEST(ResultTransformTest, MapToNewType)
-// {
-//     auto r = Ok<int, const char *>(42);
-//     auto r2 = r.map([](int x) -> float { return 5.0f; });
-//     EXPECT_TRUE(r2.is_ok());
-//     EXPECT_TRUE(f_equal(r2.unwrap(), 5.0f));
-// }
-//
-// TEST(ResultTransformTest, MapVoidToValue)
-// {
-//     auto r = Ok<Void, const char *>(Void{});
-//     auto r2 = r.map([](const Void &) -> int { return 100; });
-//     EXPECT_TRUE(r2.is_ok());
-//     EXPECT_EQ(r2.unwrap(), 100);
-// }
-//
-// TEST(ResultTransformTest, MapOrWithOk)
-// {
-//     auto r = Ok<int, const char *>(42);
-//     auto result = r.map_or(0, [](int x) -> int { return x * 2; });
-//     EXPECT_EQ(result, 84);
-// }
-//
-// TEST(ResultTransformTest, MapOrWithErr)
-// {
-//     auto r = Err<int, const char *>("MapOrWithErr");
-//     auto result = r.map_or(0, [](int x) -> int { return x * 2; });
-//     EXPECT_EQ(result, 0);
-// }
-//
-// TEST(ResultTransformTest, MapOrWithVoid)
-// {
-//     auto r1 = Ok<Void, const char *>(Void{});
-//     auto result1 = r1.map_or(0, [](const Void &) -> int { return 42; });
-//     EXPECT_EQ(result1, 42);
-//
-//     auto r2 = Err<Void, const char *>("MapOrWithVoid");
-//     auto result2 = r2.map_or(0, [](const Void &) -> int { return 42; });
-//     EXPECT_EQ(result2, 0);
-// }
-//
-// // ======================================================================
-// // Extraction Tests
-// // ======================================================================
-//
-// TEST(ResultExtractionTest, ExpectOk)
-// {
-//     auto r = Ok<int, const char *>(42);
-//     EXPECT_EQ(r.expect("should be ok"), 42);
-// }
-//
-// TEST(ResultExtractionTest, ExpectFailed)
-// {
-//     auto r = Err<int, string>("BBBB");
-//     EXPECT_THROW(
-//         {
-//             try {
-//                 r.expect("AAAA");
-//             } catch (const std::runtime_error &e) {
-//                 auto check = string{e.what()}.compare("AAAA: BBBB") ==
-//                 0; EXPECT_TRUE(check); throw;
-//             }
-//         },
-//         std::runtime_error);
-// }
-//
-// TEST(ResultExtractionTest, ExpectWithVoid)
-// {
-//     auto r = Ok<Void, const char *>(Void{});
-//     EXPECT_NO_THROW(r.expect("should be ok"));
-// }
-//
-// TEST(ResultExtractionTest, UnwrapOk)
-// {
-//     auto r = Ok<int, const char *>(42);
-//     EXPECT_EQ(r.unwrap(), 42);
-// }
-//
-// TEST(ResultExtractionTest, UnwrapFailed)
-// {
-//     auto r = Err<int, const char *>("AAAA");
-//     EXPECT_THROW(
-//         {
-//             try {
-//                 r.unwrap();
-//             } catch (const std::runtime_error &e) {
-//                 auto check = string{e.what()}.compare(
-//                                  "called `Result::unwrap()` on an `Err`
-//                                  value: AAAA") == 0;
-//                 EXPECT_TRUE(check);
-//                 throw;
-//             }
-//         },
-//         std::runtime_error);
-// }
-//
-// TEST(ResultExtractionTest, UnwrapWithVoid)
-// {
-//     auto r = Ok<Void, string>(Void{});
-//     EXPECT_NO_THROW(r.unwrap());
-// }
-//
-// TEST(ResultExtractionTest, UnwrapOrDefault)
-// {
-//     auto r1 = Ok<int, string>(42);
-//     EXPECT_EQ(r1.unwrap_or_default(), 42);
-//
-//     auto r2 = Err<int, string>("AAAA");
-//     EXPECT_EQ(r2.unwrap_or_default(), 0);
-// }
-//
-// TEST(ResultExtractionTest, ExpectErrOk)
-// {
-//     auto r = Err<int, string>("AAAA");
-//     EXPECT_EQ(r.expect_err("should be err"), "AAAA");
-// }
-//
-// TEST(ResultExtractionTest, ExpectErrFailed)
-// {
-//     auto r = Ok<int, const char *>(100);
-//     EXPECT_THROW(
-//         {
-//             try {
-//                 r.expect_err("AAAA");
-//             } catch (const std::runtime_error &e) {
-//                 auto check = string{e.what()}.compare("AAAA: 100") == 0;
-//                 EXPECT_TRUE(check);
-//                 throw;
-//             }
-//         },
-//         std::runtime_error);
-// }
-//
-// TEST(ResultExtractionTest, ExpectErrWithVoid)
-// {
-//     auto r = Err<int, Void>(Void{});
-//     EXPECT_NO_THROW(r.expect_err("should be err"));
-// }
-//
-// TEST(ResultExtractionTest, UnwrapErrOk)
-// {
-//     auto r = Err<int, string>("AAAA");
-//     EXPECT_EQ(r.unwrap_err(), "AAAA");
-// }
-//
-// TEST(ResultExtractionTest, UnwrapErrFailed)
-// {
-//     auto r = Ok<int, const char *>(100);
-//     EXPECT_THROW(
-//         {
-//             try {
-//                 r.unwrap_err();
-//             } catch (const std::runtime_error &e) {
-//                 auto check = string{e.what()}.compare(
-//                     "called `Result::unwrap_err()` on an `Ok` value: 100") ==
-//                     0;
-//                 EXPECT_TRUE(check);
-//                 throw;
-//             }
-//         },
-//         std::runtime_error);
-// }
-//
-// TEST(ResultExtractionTest, UnwrapErrWithVoid)
-// {
-//     auto r = Err<int, Void>(Void{});
-//     EXPECT_NO_THROW(r.unwrap_err());
-// }
-//
-// // ======================================================================
-// // Void Type Tests
-// // ======================================================================
-//
-// TEST(VoidTest, Equality)
-// {
-//     Void v1;
-//     Void v2;
-//     EXPECT_EQ(v1, v2);
-//     EXPECT_FALSE(v1 != v2);
-// }
-//
-// TEST(VoidTest, Printable)
-// {
-//     std::ostringstream oss;
-//     oss << Void{};
-//     EXPECT_EQ(oss.str(), "()");
-// }
-//
-// // ======================================================================
-// // Complex Type Tests
-// // ======================================================================
-//
-// TEST(ResultComplexTest, NonCopyableType)
-// {
-//     auto r = Ok<NonCopyableValue, string>(NonCopyableValue(42));
-//     EXPECT_TRUE(r.is_ok());
-//     EXPECT_EQ(std::move(r).unwrap().value, 42);
-// }
-//
-// struct CustomError
-// {
-//     int code;
-//     string message;
-//
-//     auto operator==(const CustomError &other) const -> bool
-//     {
-//         return code == other.code && message == other.message;
-//     }
-// };
-//
-// auto operator<<(std::ostream &os, const CustomError &e) -> std::ostream &
-// {
-//     return os << "Error(" << e.code << ", " << e.message << ")";
-// }
-//
-// TEST(ResultComplexTest, CustomErrorType)
-// {
-//     auto r = Err<int, CustomError>(CustomError{.code = 404, .message = "Not
-//     found"}); EXPECT_TRUE(r.is_err()); CustomError e = r.unwrap_err();
-//     EXPECT_EQ(e.code, 404);
-//     EXPECT_EQ(e.message, "Not found");
-// }
-//
-// TEST(ResultComplexTest, CustomErrorInException)
-// {
-//     auto r = Err<int, CustomError>(CustomError{.code = 500, .message =
-//     "Server error"}); EXPECT_THROW(
-//         {
-//             try {
-//                 r.unwrap();
-//             } catch (const std::runtime_error &e) {
-//                 string msg = e.what();
-//                 EXPECT_NE(msg.find("Error(500, Server error)"),
-//                 string::npos); throw;
-//             }
-//         },
-//         std::runtime_error);
-// }
