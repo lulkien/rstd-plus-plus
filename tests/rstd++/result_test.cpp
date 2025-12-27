@@ -5,7 +5,9 @@
 
 #include "rstd++/core.hpp"
 #include "rstd++/result.hpp"
+#include "gtest/gtest.h"
 #include <cmath>
+#include <cstdlib>
 #include <gtest/gtest.h>
 #include <memory>
 #include <sstream>
@@ -332,12 +334,81 @@ TEST(ResultTransformTest, ErrMapErr)
     EXPECT_TRUE(r2.is_err());
     EXPECT_EQ(r2.unwrap_err(), "New err: error");
 
-    auto r3 =
-        Result<int, const char *>::Err("other error").map_err([](const auto &err) -> auto {
-            return string("Newer err: ") + string(err);
-        });
+    auto r3 = Result<int, const char *>::Err("other error")
+                  .map_err([](const auto &err) -> auto {
+                      return string("Newer err: ") + string(err);
+                  });
     EXPECT_TRUE(r3.is_err());
     EXPECT_EQ(r3.unwrap_err(), "Newer err: other error");
+}
+
+TEST(ResultTransformTest, OkInspect)
+{
+    auto r1 = Result<int, Void>::Ok(99);
+    EXPECT_DEATH(
+        {
+            r1.inspect([](const auto &value) -> void {
+                EXPECT_EQ(value, 99);
+                abort();
+            });
+        },
+        "");
+
+    auto test_lambda = []() -> void {
+        Result<int, Void>::Ok(-99).inspect([](const auto &value) -> void {
+            EXPECT_EQ(value, -99);
+            abort();
+        });
+    };
+    EXPECT_DEATH({ test_lambda(); }, "");
+}
+
+TEST(ResultTransformTest, ErrInspect)
+{
+    auto r1 = Result<int, Void>::Err({});
+    EXPECT_NO_FATAL_FAILURE(
+        { r1.inspect([](const auto & /*unused*/) -> void { abort(); }); });
+
+    auto test_lambda = []() -> void {
+        Result<int, Void>::Err({}).inspect(
+            [](const auto & /*unused*/) -> void { abort(); });
+    };
+    EXPECT_NO_FATAL_FAILURE({ test_lambda(); });
+}
+
+TEST(ResultTransformTest, OkInspectErr)
+{
+    auto r1 = Result<int, Void>::Ok(99);
+    EXPECT_NO_FATAL_FAILURE(
+        { r1.inspect_err([](const auto & /*unused*/) -> void { abort(); }); });
+
+    auto test_lambda = []() -> void {
+        Result<int, Void>::Ok(99).inspect_err(
+            [](const auto & /*unused*/) -> void { abort(); });
+    };
+    EXPECT_NO_FATAL_FAILURE({ test_lambda(); });
+}
+
+TEST(ResultTransformTest, ErrInspectErr)
+{
+    auto r1 = Result<int, const char *>::Err("this is error");
+    EXPECT_DEATH(
+        {
+            r1.inspect_err([](const auto &err) -> void {
+                EXPECT_EQ(err, "this is error");
+                abort();
+            });
+        },
+        "");
+
+    auto test_lambda = []() -> void {
+        Result<int, const char *>::Err("this is another error")
+            .inspect_err([](const auto &err) -> void {
+                EXPECT_EQ(err, "this is another error");
+                abort();
+            });
+    };
+    EXPECT_DEATH({ test_lambda(); }, "");
 }
 
 TEST(ResultTransformTest, ChainOperation)
@@ -347,6 +418,9 @@ TEST(ResultTransformTest, ChainOperation)
     constexpr int current_year = 2025;
     auto check =
         Result<int, const char *>::Ok(year_of_birth)
+            .inspect([year_of_birth](const auto &value) -> void {
+                EXPECT_EQ(value, year_of_birth);
+            })
             .map([](const int &year) -> int { return current_year - year; })
             .and_then([](const int &age) -> auto {
                 if (age < 0 or age > 200) {
