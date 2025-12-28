@@ -415,12 +415,13 @@ TEST(ResultExtractionTest, OkExpect)
 {
     auto r1 = Result<int, Void>::Ok(5);
     EXPECT_NO_FATAL_FAILURE({
-        auto o1 = r1.expect("should not print this");
+        auto o1 = r1.expect("this shoud be an ok");
         EXPECT_EQ(o1, 5);
     });
 
     auto test_lambda = []() -> void {
-        auto o2 = Result<int, Void>::Ok(-99).expect("don't print this");
+        auto o2 =
+            Result<int, Void>::Ok(-99).expect("this also should be an ok");
         EXPECT_EQ(o2, -99);
     };
 
@@ -430,17 +431,41 @@ TEST(ResultExtractionTest, OkExpect)
 TEST(ResultExtractionTest, ErrExpect)
 {
     auto r1 = Result<Void, const char *>::Err("Error");
-    EXPECT_ANY_THROW({
-        auto o1 = r1.expect("I'm dead");
-        (void)o1;
+    EXPECT_ANY_THROW({ r1.expect("this should be an ok"); });
+
+    auto test_lambda = []() -> void {
+        Result<Void, const char *>::Err("Error 2").expect(
+            "this also should be an ok");
+    };
+    EXPECT_ANY_THROW({ test_lambda(); });
+}
+
+TEST(ResultExtractionTest, OkExpectErr)
+{
+    auto r1 = Result<int, Void>::Ok(5);
+    EXPECT_ANY_THROW({ r1.expect_err("this should be an err"); });
+
+    auto test_lambda = []() -> void {
+        Result<int, Void>::Ok(-99).expect_err("this also should be an err");
+    };
+
+    EXPECT_ANY_THROW({ test_lambda(); });
+}
+
+TEST(ResultExtractionTest, ErrExpectErr)
+{
+    auto r1 = Result<Void, const char *>::Err("Error");
+    EXPECT_NO_FATAL_FAILURE({
+        auto o2 = r1.expect_err("this should be an err");
+        EXPECT_EQ(o2, "Error");
     });
 
     auto test_lambda = []() -> void {
-        auto o2 = Result<Void, const char *>::Err("Error 2").expect(
-            "I'm really dead");
-        (void)o2;
+        auto o2 = Result<Void, const char *>::Err("Error 2").expect_err(
+            "this also should be an ok");
+        EXPECT_EQ(o2, "Error 2");
     };
-    EXPECT_ANY_THROW({ test_lambda(); });
+    EXPECT_NO_FATAL_FAILURE({ test_lambda(); });
 }
 
 TEST(ResultTransformTest, ChainOperation)
