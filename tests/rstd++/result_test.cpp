@@ -411,6 +411,38 @@ TEST(ResultTransformTest, ErrInspectErr)
     EXPECT_DEATH({ test_lambda(); }, "");
 }
 
+TEST(ResultExtractionTest, OkExpect)
+{
+    auto r1 = Result<int, Void>::Ok(5);
+    EXPECT_NO_FATAL_FAILURE({
+        auto o1 = r1.expect("should not print this");
+        EXPECT_EQ(o1, 5);
+    });
+
+    auto test_lambda = []() -> void {
+        auto o2 = Result<int, Void>::Ok(-99).expect("don't print this");
+        EXPECT_EQ(o2, -99);
+    };
+
+    EXPECT_NO_FATAL_FAILURE({ test_lambda(); });
+}
+
+TEST(ResultExtractionTest, ErrExpect)
+{
+    auto r1 = Result<Void, const char *>::Err("Error");
+    EXPECT_ANY_THROW({
+        auto o1 = r1.expect("I'm dead");
+        (void)o1;
+    });
+
+    auto test_lambda = []() -> void {
+        auto o2 = Result<Void, const char *>::Err("Error 2").expect(
+            "I'm really dead");
+        (void)o2;
+    };
+    EXPECT_ANY_THROW({ test_lambda(); });
+}
+
 TEST(ResultTransformTest, ChainOperation)
 {
     // Chain map test, with r-value
