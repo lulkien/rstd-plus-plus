@@ -5,15 +5,15 @@
 
 #include "rstd++/core.hpp"
 #include "rstd++/result.hpp"
-#include "gtest/gtest.h"
+
 #include <cmath>
-#include <cstdlib>
 #include <gtest/gtest.h>
 #include <memory>
 #include <sstream>
 #include <string>
 
 using namespace rstd;
+using namespace rstd::result;
 using std::string;
 
 #define take(a) std::move(a)

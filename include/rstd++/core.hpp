@@ -8,20 +8,28 @@ namespace rstd
 {
 
 template <typename T>
-concept Printable = requires(std::ostream &os, const T &val) { os << val; };
+concept is_printable = requires(std::ostream &os, const T &val) { os << val; };
 
 template <typename T>
-concept DefaultConstructible = std::is_default_constructible_v<T>;
+concept is_default_constructible = std::is_default_constructible_v<T>;
+
+template <typename T>
+concept is_cloneable = requires(const T &obj) {
+    { T(obj) } -> std::same_as<T>;
+    requires std::is_copy_constructible_v<T>;
+    requires std::is_copy_assignable_v<T>;
+    requires std::is_destructible_v<T>;
+};
 
 template <typename Fn, typename... Args>
-concept BoolReturning = requires(Fn &&fn, Args &&...args) {
+concept fn_return_boolean = requires(Fn &&fn, Args &&...args) {
     {
         std::invoke(std::forward<Fn>(fn), std::forward<Args>(args)...)
     } -> std::same_as<bool>;
 };
 
 template <typename Fn, typename... Args>
-concept VoidReturning = requires(Fn &&fn, Args &&...args) {
+concept fn_return_void = requires(Fn &&fn, Args &&...args) {
     {
         std::invoke(std::forward<Fn>(fn), std::forward<Args>(args)...)
     } -> std::same_as<void>;
@@ -32,17 +40,6 @@ concept VoidReturning = requires(Fn &&fn, Args &&...args) {
  *
  * This is used instead of void in template parameters, providing
  * a concrete type that can be instantiated and passed around.
- *
- * @example
- * ```cpp
- * // Function that can fail but has no value on success
- * Result<Void, std::string> validate_input(const std::string& input) {
- *     if (input.empty()) {
- *         return Result<Void, std::string>::Err("Input cannot be empty");
- *     }
- *     return Result<Void, std::string>::Ok(Void{});
- * }
- * ```
  */
 struct Void
 {
