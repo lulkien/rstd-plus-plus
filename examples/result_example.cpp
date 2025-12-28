@@ -6,6 +6,7 @@
 #include "rstd++/result.hpp"
 
 using namespace rstd;
+using namespace rstd::result;
 
 // Example 1: Division with error handling
 auto divide(int a, int b) -> Result<int, const char *>
@@ -55,7 +56,8 @@ void validation_example()
         if (result.is_ok()) {
             std::cout << "Age " << age << " is valid\n";
         } else {
-            std::cout << "Age " << age << " is invalid: " << result.unwrap_err() << "\n";
+            std::cout << "Age " << age << " is invalid: " << result.unwrap_err()
+                      << "\n";
         }
     }
     std::cout << "\n";
@@ -80,7 +82,8 @@ void parsing_example()
     for (const auto &input : inputs) {
         auto result = parse_number(input);
         if (result.is_ok()) {
-            std::cout << "Parsed '" << input << "' -> " << result.unwrap() << "\n";
+            std::cout << "Parsed '" << input << "' -> " << result.unwrap()
+                      << "\n";
         } else {
             std::cout << "Failed to parse '" << input << "'\n";
         }
@@ -94,9 +97,9 @@ void chaining_example()
     std::cout << "=== Chaining Example ===\n";
 
     auto result =
-        divide(100, 5).map([](int x) -> int { return x * 2; }).map([](int x) -> std::string {
-            return std::to_string(x);
-        });
+        divide(100, 5)
+            .map([](int x) -> int { return x * 2; })
+            .map([](int x) -> std::string { return std::to_string(x); });
 
     if (result.is_ok()) {
         std::cout << "Result: " << result.unwrap() << "\n";
